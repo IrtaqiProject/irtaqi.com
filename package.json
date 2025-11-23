@@ -11,7 +11,8 @@
     "dev:all": "concurrently \"bun dev\" \"bun run src/queue/worker.js\""
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.62.11",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@tanstack/react-query": "^4.36.1",
     "@trpc/client": "^10.45.2",
     "@trpc/next": "^10.45.2",
     "@trpc/react-query": "^10.45.2",
@@ -20,13 +21,13 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "ioredis": "^5.4.1",
+    "lucide-react": "^0.471.0",
     "mermaid": "^11.3.0",
     "next": "16.0.3",
     "next-auth": "^4.24.10",
     "openai": "^4.85.2",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "lucide-react": "^0.471.0",
     "superjson": "^2.2.1",
     "tailwind-merge": "^2.5.5",
     "zod": "^3.23.8"
