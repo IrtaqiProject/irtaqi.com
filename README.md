@@ -8,7 +8,6 @@ Next.js (App Router) + Tailwind + shadcn-style UI + tRPC + NextAuth + BullMQ que
 bun install         # install deps
 bun dev             # start Next.js dev server
 bun run lint        # lint
-bun run typecheck   # type-check
 bun run worker      # start BullMQ worker (separate terminal)
 ```
 
@@ -40,19 +39,19 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 ## Queue + workers
 
-- Queue helper: `src/lib/queue.ts`
-- Worker stub: `src/queue/worker.ts` (uses the same Redis connection).
-- Jobs have retries and exponential backoff; swap the stub with real Whisper/HF logic in `src/lib/openai.ts`.
+- Queue helper: `src/lib/queue.js`
+- Worker stub: `src/queue/worker.js` (uses the same Redis connection).
+- Jobs have retries and exponential backoff; swap the stub with real Whisper/HF logic in `src/lib/openai.js`.
 
 ## UI + diagrams
 
 - Tailwind + shadcn-style Button/Card primitives in `src/components/ui`.
-- Status panel demonstrating NextAuth + tRPC at `src/components/status-panel.tsx`.
-- Mermaid viewer in `src/components/mermaid-viewer.tsx`; sample page at `/mermaid`.
+- Status panel demonstrating NextAuth + tRPC at `src/components/status-panel.jsx`.
+- Mermaid viewer in `src/components/mermaid-viewer.jsx`; sample page at `/mermaid`.
 
 ## Notes for Coolify
 
 - Build command: `bun install && bun run build`
 - Start command: `bun run start`
-- Worker process: `bun run src/queue/worker.ts`
+- Worker process: `bun run src/queue/worker.js`
 - Provide `.env` with the variables above; include Redis service for BullMQ.

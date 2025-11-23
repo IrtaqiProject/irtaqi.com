@@ -9,7 +9,7 @@ import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 export function StatusPanel() {
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const { data: health, isFetching } = trpc.health.ping.useQuery();
   const secretQuery = trpc.health.secret.useQuery(undefined, {
     enabled: Boolean(session),
