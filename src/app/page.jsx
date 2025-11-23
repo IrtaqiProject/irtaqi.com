@@ -129,11 +129,16 @@ export default function Home() {
             sekadar menonton.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Button size="lg" className="shadow-brand">
-              Mulai dari YouTube video
-              <ArrowRight className="ml-2 h-4 w-4" />
+            <Button asChild size="lg" className="shadow-brand">
+              <Link href="/login">
+                Mulai dari YouTube video
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
             </Button>
             <Button asChild variant="secondary" size="lg" className="bg-white/10 text-white hover:bg-white/20">
+              <Link href="/signup">Buat akun gratis</Link>
+            </Button>
+            <Button asChild variant="ghost" size="lg" className="text-white hover:bg-white/10">
               <Link href="/mermaid">Lihat mindmap sample</Link>
             </Button>
           </div>
@@ -235,7 +240,7 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2 rounded-full bg-white/5 px-3 py-2 text-xs text-white/70">
             <span className="h-2 w-2 rounded-full bg-emerald-300" />
-            Content dapat dicari & difilter
+            Content dapat dicari & difilter (login untuk memulai)
           </div>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
