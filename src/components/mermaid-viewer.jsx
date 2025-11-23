@@ -5,13 +5,8 @@ import { useEffect, useId, useState } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type MermaidViewerProps = {
-  title?: string;
-  chart: string;
-};
-
-export function MermaidViewer({ title = "Flow", chart }: MermaidViewerProps) {
-  const [svg, setSvg] = useState<string>("");
+export function MermaidViewer({ title = "Flow", chart }) {
+  const [svg, setSvg] = useState("");
   const id = useId();
 
   useEffect(() => {

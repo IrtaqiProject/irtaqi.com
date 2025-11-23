@@ -8,7 +8,7 @@ const bodySchema = z.object({
   prompt: z.string().optional(),
 });
 
-export async function POST(req: Request) {
+export async function POST(req) {
   const authHeader = req.headers.get("x-internal-token");
   if (!authHeader || authHeader !== process.env.INTERNAL_API_TOKEN) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

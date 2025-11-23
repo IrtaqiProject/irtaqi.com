@@ -11,7 +11,7 @@ const bodySchema = z.object({
   prompt: z.string().optional(),
 });
 
-export async function POST(req: Request) {
+export async function POST(req) {
   const json = await req.json();
   const body = bodySchema.safeParse(json);
 

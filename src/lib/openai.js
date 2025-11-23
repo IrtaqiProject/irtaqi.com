@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-let cachedClient: OpenAI | null = null;
+let cachedClient = null;
 
 export function getOpenAIClient() {
   if (cachedClient) return cachedClient;
@@ -11,7 +11,7 @@ export function getOpenAIClient() {
   return cachedClient;
 }
 
-export async function transcribeAudioStub(source: string, prompt?: string) {
+export async function transcribeAudioStub(source, prompt) {
   // Placeholder to avoid network calls during development.
   return {
     text: `Transcription placeholder for "${source}"${prompt ? ` with prompt "${prompt}"` : ""}.`,

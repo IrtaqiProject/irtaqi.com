@@ -161,7 +161,7 @@ export default function Home() {
               README).
             </p>
             <p>
-              - Worker stub lives in <code className="font-semibold text-white">src/queue/worker.ts</code>.
+              - Worker stub lives in <code className="font-semibold text-white">src/queue/worker.js</code>.
             </p>
             <p className="text-white">Happy shipping 🚀</p>
           </CardContent>

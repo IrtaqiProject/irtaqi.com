@@ -1,6 +1,6 @@
 const API_BASE = "https://www.googleapis.com/youtube/v3";
 
-export function extractVideoId(input: string) {
+export function extractVideoId(input) {
   const urlIdMatch = input.match(/[?&]v=([^&#]+)/)?.[1];
   const shortMatch = input.match(/youtu\.be\/([^?]+)/)?.[1];
   const embedMatch = input.match(/youtube\.com\/embed\/([^?]+)/)?.[1];
@@ -9,7 +9,7 @@ export function extractVideoId(input: string) {
   return urlIdMatch ?? shortMatch ?? embedMatch ?? plainIdMatch ?? null;
 }
 
-export async function fetchYoutubeMetadata(id: string) {
+export async function fetchYoutubeMetadata(id) {
   if (!process.env.YOUTUBE_API_KEY) {
     throw new Error("YOUTUBE_API_KEY is missing");
   }
@@ -21,14 +21,7 @@ export async function fetchYoutubeMetadata(id: string) {
     throw new Error(`YouTube API error ${res.status}`);
   }
 
-  const data = (await res.json()) as {
-    items?: Array<{
-      id: string;
-      snippet?: { title?: string; description?: string; channelTitle?: string };
-      contentDetails?: { duration?: string };
-    }>;
-  };
-
+  const data = await res.json();
   const video = data.items?.[0];
   if (!video) {
     throw new Error("Video not found");

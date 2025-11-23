@@ -8,11 +8,7 @@ const queueName = "transcription";
 export const worker = new Worker(
   queueName,
   async (job) => {
-    const { audioUrl, videoId, prompt } = job.data as {
-      audioUrl?: string;
-      videoId?: string;
-      prompt?: string;
-    };
+    const { audioUrl, videoId, prompt } = job.data || {};
 
     // TODO: fetch the YouTube audio by videoId and upload buffer to Whisper.
     return transcribeAudioStub(audioUrl ?? videoId ?? "unknown-source", prompt);
