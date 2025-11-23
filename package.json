@@ -1,0 +1,46 @@
+{
+  "name": "irtaqi-project",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "worker": "bun run src/queue/worker.ts"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.62.11",
+    "@trpc/client": "^10.45.2",
+    "@trpc/next": "^10.45.2",
+    "@trpc/react-query": "^10.45.2",
+    "@trpc/server": "^10.45.2",
+    "bullmq": "^5.29.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "ioredis": "^5.4.1",
+    "mermaid": "^11.3.0",
+    "next": "16.0.3",
+    "next-auth": "^4.24.10",
+    "openai": "^4.85.2",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "lucide-react": "^0.471.0",
+    "superjson": "^2.2.1",
+    "tailwind-merge": "^2.5.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.14",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "16.0.3",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.7.3"
+  },
+  "packageManager": "bun@1.1.34"
+}
