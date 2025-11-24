@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
 
-import { redisConnection } from "@/lib/queue";
+import { getRedisConnection } from "@/lib/queue";
 import { transcribeAudioStub } from "@/lib/openai";
 
 const queueName = "transcription";
@@ -13,9 +13,7 @@ export const worker = new Worker(
     // TODO: fetch the YouTube audio by videoId and upload buffer to Whisper.
     return transcribeAudioStub(audioUrl ?? videoId ?? "unknown-source", prompt);
   },
-  {
-    connection: redisConnection,
-  },
+  { connection: getRedisConnection() ?? undefined },
 );
 
 worker.on("completed", (job) => {

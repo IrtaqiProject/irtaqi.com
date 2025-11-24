@@ -11,29 +11,50 @@ const defaultJobOptions = {
   },
 };
 
+const disableRedis =
+  process.env.DISABLE_REDIS === "true" || process.env.NEXT_PHASE === "phase-production-build";
+
 const globalForQueue = globalThis;
 
-export const redisConnection =
-  globalForQueue._redisConnection ??
-  new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
-    maxRetriesPerRequest: null,
-  });
+let redisConnection = globalForQueue._redisConnection;
+let transcriptionQueue = globalForQueue._transcriptionQueue;
 
-if (!globalForQueue._redisConnection) {
-  globalForQueue._redisConnection = redisConnection;
+function ensureRedisConnection() {
+  if (disableRedis) return null;
+  if (!redisConnection) {
+    redisConnection = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
+      maxRetriesPerRequest: null,
+    });
+    globalForQueue._redisConnection = redisConnection;
+  }
+  return redisConnection;
 }
 
-export const transcriptionQueue =
-  globalForQueue._transcriptionQueue ??
-  new Queue(queueName, {
-    connection: redisConnection,
-    defaultJobOptions,
-  });
-
-if (!globalForQueue._transcriptionQueue) {
-  globalForQueue._transcriptionQueue = transcriptionQueue;
+function ensureQueue() {
+  const connection = ensureRedisConnection();
+  if (!connection) return null;
+  if (!transcriptionQueue) {
+    transcriptionQueue = new Queue(queueName, {
+      connection,
+      defaultJobOptions,
+    });
+    globalForQueue._transcriptionQueue = transcriptionQueue;
+  }
+  return transcriptionQueue;
 }
 
 export async function enqueueTranscriptionJob(payload) {
-  return transcriptionQueue.add("transcription", payload);
+  const queue = ensureQueue();
+  if (!queue) {
+    throw new Error("Queue disabled during build or missing Redis connection.");
+  }
+  return queue.add("transcription", payload);
+}
+
+export function getRedisConnection() {
+  return ensureRedisConnection();
+}
+
+export function getTranscriptionQueue() {
+  return ensureQueue();
 }
