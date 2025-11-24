@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { transcribeAudioStub } from "@/lib/openai";
+import { transcribeAudioStub, transcribeWithWhisperAPI } from "@/lib/openai";
 
 const bodySchema = z.object({
   audioUrl: z.string().url(),
@@ -23,8 +23,14 @@ export async function POST(req) {
 
   const { audioUrl, prompt } = parsed.data;
 
-  // Swap this stub with a real Whisper/Hugging Face call when ready.
-  const transcription = await transcribeAudioStub(audioUrl, prompt);
+  try {
+    const transcription = process.env.WHISPER_API_KEY
+      ? await transcribeWithWhisperAPI(audioUrl, { prompt, language: "id" })
+      : await transcribeAudioStub(audioUrl, prompt);
 
-  return NextResponse.json({ transcription });
+    return NextResponse.json({ transcription });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to transcribe";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

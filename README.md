@@ -27,14 +27,16 @@ OPENAI_API_KEY=...             # optional (fallback stub used if missing)
 INTERNAL_API_TOKEN=dev-internal-token
 REDIS_URL=redis://localhost:6379
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+WHISPER_API_KEY=...            # for whisperapi.com
 ```
 
 ## API map
 
 - `GET /api/trpc/health.ping` — health check (tRPC).
 - `GET /api/youtube?id=<videoId>|url=<youtube-url>` — YouTube metadata stub.
+- `GET /api/ytdlp?url=<youtube-url>&format=bestvideo*+bestaudio/best` — yt-dlp JSON wrapper (requires yt-dlp binary).
 - `POST /api/queue/enqueue` — enqueue transcription `{ videoId|youtubeUrl|audioUrl, prompt }`.
-- `POST /api/internal/transcribe` — internal-only (header `x-internal-token`) transcription stub.
+- `POST /api/internal/transcribe` — internal-only (header `x-internal-token`) transcription via whisperapi.com (falls back to stub if no key).
 - `GET|POST /api/auth/[...nextauth]` — NextAuth (Google).
 
 ## Queue + workers
