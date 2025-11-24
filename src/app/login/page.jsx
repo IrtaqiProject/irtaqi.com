@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, LogIn, Loader2, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/transcribe";
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -29,7 +31,7 @@ export default function LoginPage() {
     if (res?.error) {
       setError("Login gagal, cek email/password.");
     } else {
-      router.push("/");
+      router.push(callbackUrl);
     }
   };
 
@@ -90,7 +92,7 @@ export default function LoginPage() {
           <Button
             variant="secondary"
             className="w-full bg-white text-[#1b1145] hover:bg-white/90"
-            onClick={() => signIn("google", { callbackUrl: "/" })}
+            onClick={() => signIn("google", { callbackUrl })}
           >
             Login dengan Google
           </Button>

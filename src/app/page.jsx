@@ -130,7 +130,7 @@ export default function Home() {
           </p>
           <div className="flex flex-wrap gap-3">
             <Button asChild size="lg" className="shadow-brand">
-              <Link href="/login">
+              <Link href="/transcribe">
                 Mulai dari YouTube video
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
