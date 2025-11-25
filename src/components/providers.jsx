@@ -1,9 +1,9 @@
 "use client";
 
+import { Provider as JotaiProvider, atom, useAtom } from "jotai";
 import { httpBatchLink } from "@trpc/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionProvider } from "next-auth/react";
-import { useState } from "react";
 import superjson from "superjson";
 
 import { trpc } from "@/lib/trpc/client";
@@ -15,27 +15,29 @@ function getBaseUrl() {
   return "http://localhost:3000";
 }
 
-export function Providers({ children }) {
-  const [queryClient] = useState(() => new QueryClient());
-  const [trpcClient] = useState(
-    () =>
-      trpc.createClient({
-        transformer: superjson,
-        links: [
-          httpBatchLink({
-            url: `${getBaseUrl()}/api/trpc`,
-          }),
-        ],
+const queryClientAtom = atom(new QueryClient());
+const trpcClientAtom = atom(
+  trpc.createClient({
+    transformer: superjson,
+    links: [
+      httpBatchLink({
+        url: `${getBaseUrl()}/api/trpc`,
       }),
-  );
+    ],
+  }),
+);
+
+export function Providers({ children }) {
+  const [queryClient] = useAtom(queryClientAtom);
+  const [trpcClient] = useAtom(trpcClientAtom);
 
   return (
     <SessionProvider>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
-      </trpc.Provider>
+      <JotaiProvider>
+        <trpc.Provider client={trpcClient} queryClient={queryClient}>
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        </trpc.Provider>
+      </JotaiProvider>
     </SessionProvider>
   );
 }

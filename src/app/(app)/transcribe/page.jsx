@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { atom, useAtom } from "jotai";
 import { Loader2, PlayCircle, Wand2, Rocket } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 
 import { Button } from "@/components/ui/button";
@@ -13,11 +14,16 @@ export default function TranscribePage() {
   const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [youtubeUrl, setYoutubeUrl] = useState("");
-  const [prompt, setPrompt] = useState("Highlight ayat, hadits, dan poin praktis.");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState("");
+  const youtubeAtom = useMemo(() => atom(""), []);
+  const promptAtom = useMemo(() => atom("Highlight ayat, hadits, dan poin praktis."), []);
+  const loadingAtom = useMemo(() => atom(false), []);
+  const resultAtom = useMemo(() => atom(null), []);
+  const errorAtom = useMemo(() => atom(""), []);
+  const [youtubeUrl, setYoutubeUrl] = useAtom(youtubeAtom);
+  const [prompt, setPrompt] = useAtom(promptAtom);
+  const [loading, setLoading] = useAtom(loadingAtom);
+  const [result, setResult] = useAtom(resultAtom);
+  const [error, setError] = useAtom(errorAtom);
 
   useEffect(() => {
     if (status === "unauthenticated") {
