@@ -1,6 +1,6 @@
 # Irtaqi AI boilerplate
 
-Next.js (App Router) + Tailwind + shadcn-style UI + tRPC + NextAuth + BullMQ queueing, ready for YouTube ingest and Whisper/Hugging Face transcription. Designed to run on Coolify for both frontend and backend.
+Next.js (App Router) + Tailwind + shadcn-style UI + NextAuth + BullMQ queueing, ready for YouTube ingest and Whisper/Hugging Face transcription. Designed to run on Coolify for both frontend and backend.
 
 ## Quickstart
 
@@ -24,20 +24,19 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 YOUTUBE_API_KEY=...
 OPENAI_API_KEY=...             # optional (fallback stub used if missing)
-INTERNAL_API_TOKEN=dev-internal-token
 REDIS_URL=redis://localhost:6379
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 WHISPER_API_KEY=...            # for whisperapi.com
 ```
 
-## API map
+## Server actions (no custom API routes)
 
-- `GET /api/trpc/health.ping` — health check (tRPC).
-- `GET /api/youtube?id=<videoId>|url=<youtube-url>` — YouTube metadata stub.
-- `GET /api/ytdlp?url=<youtube-url>&format=bestvideo*+bestaudio/best` — yt-dlp JSON wrapper (requires yt-dlp binary).
-- `POST /api/queue/enqueue` — enqueue transcription `{ videoId|youtubeUrl|audioUrl, prompt }`.
-- `POST /api/internal/transcribe` — internal-only (header `x-internal-token`) transcription via whisperapi.com (falls back to stub if no key).
-- `GET|POST /api/auth/[...nextauth]` — NextAuth (Google).
+- `enqueueTranscriptionAction` — enqueue transcription `{ videoId|youtubeUrl|audioUrl, prompt }`.
+- `transcribeDirectAction` — server-side transcription (WhisperAPI or stub).
+- `healthCheck` / `healthSecret` — public/protected health ping.
+- `signupAction` — create user in in-memory store.
+- `fetchYoutubeMetaAction` / `ytdlpInfoAction` — YouTube metadata and yt-dlp JSON wrapper.
+- `GET|POST /api/auth/[...nextauth]` — NextAuth (Google) still uses the built-in route.
 
 ## Queue + workers
 
@@ -48,7 +47,7 @@ WHISPER_API_KEY=...            # for whisperapi.com
 ## UI + diagrams
 
 - Tailwind + shadcn-style Button/Card primitives in `src/components/ui`.
-- Status panel demonstrating NextAuth + tRPC at `src/components/status-panel.jsx`.
+- Status panel demonstrating NextAuth + server actions at `src/components/status-panel.jsx`.
 - Mermaid viewer in `src/components/mermaid-viewer.jsx`; sample page at `/mermaid`.
 
 ## Deployment (IDcloudhost + Cloudflare)

@@ -6,17 +6,17 @@ const sample = `
 sequenceDiagram
   autonumber
   participant U as User
-  participant N as Next.js API
+  participant N as Next.js App
   participant Q as BullMQ
   participant W as Worker
   participant O as OpenAI Whisper
-  U->>N: POST /api/queue/enqueue (videoId)
+  U->>N: Server Action enqueueTranscription (videoId)
   N->>Q: Add job (transcription)
   Q-->>W: Pull job
   W->>O: Transcribe audio
   O-->>W: Transcript text
-  W->>N: Callback via /api/internal/transcribe
-  N-->>U: tRPC subscription/poll update
+  W-->>N: Store transcription (server-side)
+  N-->>U: Server action / SSE update
 `;
 
 export default function MermaidPage() {
@@ -53,7 +53,7 @@ const chart = \`graph TD
   A[YouTube] -->|Data API| B(Download)
   B --> C[Queue]
   C --> D[Whisper]
-  D --> E[tRPC client]
+  D --> E[Client UI]
 \`;
 
 <MermaidViewer chart={chart} title="My flow" />`}</code>
