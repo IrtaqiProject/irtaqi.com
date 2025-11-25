@@ -5,6 +5,7 @@ import { Loader2, PlayCircle, Wand2, Rocket } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
+import { enqueueTranscriptionAction } from "@/actions/transcription";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -49,13 +50,7 @@ export default function TranscribePage() {
     setError("");
     setResult(null);
     try {
-      const res = await fetch("/api/queue/enqueue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ youtubeUrl, prompt }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Failed to enqueue");
+      const data = await enqueueTranscriptionAction({ youtubeUrl, prompt });
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to enqueue");

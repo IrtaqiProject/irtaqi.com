@@ -1,28 +1,65 @@
 "use client";
 
 import { useSession, signIn, signOut } from "next-auth/react";
+import { useEffect, useState } from "react";
 import { Loader2, ShieldCheck, ShieldOff } from "lucide-react";
 
+import { healthCheck, healthSecret } from "@/actions/health";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 export function StatusPanel() {
   const { data: session } = useSession();
-  const { data: health, isFetching } = trpc.health.ping.useQuery();
-  const secretQuery = trpc.health.secret.useQuery(undefined, {
-    enabled: Boolean(session),
-  });
+  const [health, setHealth] = useState(null);
+  const [secret, setSecret] = useState(null);
+  const [isHealthLoading, setIsHealthLoading] = useState(true);
+  const [secretState, setSecretState] = useState({ loading: false, error: "" });
+
+  useEffect(() => {
+    let active = true;
+    async function loadHealth() {
+      setIsHealthLoading(true);
+      try {
+        const data = await healthCheck();
+        if (active) setHealth(data);
+      } catch (error) {
+        if (active) setHealth(null);
+      } finally {
+        if (active) setIsHealthLoading(false);
+      }
+    }
+    loadHealth();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const fetchSecret = async () => {
+    if (!session) return;
+    setSecretState({ loading: true, error: "" });
+    try {
+      const data = await healthSecret();
+      setSecret(data);
+    } catch (error) {
+      setSecret(null);
+      setSecretState({
+        loading: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      return;
+    }
+    setSecretState({ loading: false, error: "" });
+  };
 
   return (
     <Card className="border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-secondary/5">
       <CardHeader className="flex flex-row items-center justify-between gap-3 pb-0">
         <div>
           <CardTitle>Live status</CardTitle>
-          <CardDescription>tRPC + NextAuth wiring check</CardDescription>
+          <CardDescription>Server action + NextAuth wiring check</CardDescription>
         </div>
-        {isFetching ? (
+        {isHealthLoading ? (
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
         ) : (
           <span
@@ -39,7 +76,7 @@ export function StatusPanel() {
       <CardContent className="space-y-4">
         <div className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
           <p className="text-sm text-muted-foreground">
-            {health?.message ?? "Waiting for tRPC ping..."}
+            {health?.message ?? "Waiting for server action ping..."}
           </p>
           <p className="mt-1 text-xs text-muted-foreground/80">
             {health?.time ? `Server time: ${health.time}` : "Server time will appear when online."}
@@ -57,15 +94,15 @@ export function StatusPanel() {
                 {session ? session.user?.email ?? "Signed in" : "Not authenticated"}
               </p>
               <p className="text-xs text-muted-foreground">
-                {session ? "Protected tRPC routes enabled." : "Sign in to access protected routes."}
+                {session ? "Protected server actions enabled." : "Sign in to access protected calls."}
               </p>
             </div>
           </div>
           <div className="flex gap-2">
             {session ? (
               <>
-                <Button variant="secondary" onClick={() => secretQuery.refetch()}>
-                  Call protected
+                <Button variant="secondary" onClick={fetchSecret} disabled={secretState.loading}>
+                  {secretState.loading ? "Loading..." : "Call protected"}
                 </Button>
                 <Button variant="outline" onClick={() => signOut()}>
                   Sign out
@@ -76,12 +113,17 @@ export function StatusPanel() {
             )}
           </div>
         </div>
-        {secretQuery.data && (
+        {secret && (
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
             <p className="font-semibold text-primary">Protected data</p>
             <p className="text-muted-foreground">
-              {JSON.stringify(secretQuery.data, null, 2)}
+              {JSON.stringify(secret, null, 2)}
             </p>
+          </div>
+        )}
+        {secretState.error && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            {secretState.error}
           </div>
         )}
       </CardContent>

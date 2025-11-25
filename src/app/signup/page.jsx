@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { UserPlus, Mail, Lock, Loader2, ArrowLeft, CheckCircle } from "lucide-react";
 import Link from "next/link";
 
+import { signupAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -23,21 +24,15 @@ export default function SignupPage() {
     setLoading(true);
     setError("");
     setSuccess(false);
-    const res = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data?.error ?? "Gagal daftar");
+    try {
+      await signupAction(form);
+      setSuccess(true);
+      router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal daftar");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setSuccess(true);
-    setLoading(false);
-    router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   };
 
   return (

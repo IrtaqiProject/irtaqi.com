@@ -206,8 +206,8 @@ export default function Home() {
             <h2 className="text-3xl font-bold text-white">Belajar mendalam, seru, dan terstruktur</h2>
           </div>
           <Button asChild variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10">
-            <Link href="/api/trpc/health.ping" target="_blank" rel="noreferrer">
-              Cek API health
+            <Link href="/health">
+              Cek health server
             </Link>
           </Button>
         </div>
@@ -224,7 +224,7 @@ export default function Home() {
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-emerald-200">
                   <span className="h-2 w-2 rounded-full bg-emerald-300" />
-                  Siap pakai dengan Next.js + tRPC
+                  Siap pakai dengan Next.js + server actions
                 </div>
               </CardContent>
             </Card>
