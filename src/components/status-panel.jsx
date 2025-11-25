@@ -2,7 +2,7 @@
 
 import { atom, useAtom } from "jotai";
 import { useSession, signIn, signOut } from "next-auth/react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useRef } from "react";
 import { Loader2, ShieldCheck, ShieldOff } from "lucide-react";
 
 import { healthCheck, healthSecret } from "@/actions/health";
@@ -12,10 +12,10 @@ import { cn } from "@/lib/utils";
 
 export function StatusPanel() {
   const { data: session } = useSession();
-  const healthAtom = useMemo(() => atom(null), []);
-  const secretAtom = useMemo(() => atom(null), []);
-  const healthLoadingAtom = useMemo(() => atom(true), []);
-  const secretStateAtom = useMemo(() => atom({ loading: false, error: "" }), []);
+  const healthAtom = useRef(atom(null)).current;
+  const secretAtom = useRef(atom(null)).current;
+  const healthLoadingAtom = useRef(atom(true)).current;
+  const secretStateAtom = useRef(atom({ loading: false, error: "" })).current;
   const [health, setHealth] = useAtom(healthAtom);
   const [secret, setSecret] = useAtom(secretAtom);
   const [isHealthLoading, setIsHealthLoading] = useAtom(healthLoadingAtom);

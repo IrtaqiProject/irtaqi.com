@@ -2,13 +2,13 @@
 
 import mermaid from "mermaid";
 import { atom, useAtom } from "jotai";
-import { useEffect, useId, useMemo } from "react";
+import { useEffect, useId, useRef } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function MermaidViewer({ title = "Flow", chart }) {
-  const svgAtom = useMemo(() => atom(""), []);
-  const [svg, setSvg] = useAtom(svgAtom);
+  const svgAtomRef = useRef(atom(""));
+  const [svg, setSvg] = useAtom(svgAtomRef.current);
   const id = useId();
 
   useEffect(() => {

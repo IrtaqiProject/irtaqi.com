@@ -2,7 +2,7 @@
 
 import { atom, useAtom } from "jotai";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo } from "react";
+import { useRef } from "react";
 import { UserPlus, Mail, Lock, Loader2, ArrowLeft, CheckCircle } from "lucide-react";
 import Link from "next/link";
 
@@ -11,14 +11,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
+const formAtomBase = atom({ name: "", email: "", password: "" });
+const loadingAtomBase = atom(false);
+const errorAtomBase = atom("");
+const successAtomBase = atom(false);
+
 export default function SignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/transcribe";
-  const formAtom = useMemo(() => atom({ name: "", email: "", password: "" }), []);
-  const loadingAtom = useMemo(() => atom(false), []);
-  const errorAtom = useMemo(() => atom(""), []);
-  const successAtom = useMemo(() => atom(false), []);
+  const formAtom = useRef(formAtomBase).current;
+  const loadingAtom = useRef(loadingAtomBase).current;
+  const errorAtom = useRef(errorAtomBase).current;
+  const successAtom = useRef(successAtomBase).current;
   const [form, setForm] = useAtom(formAtom);
   const [loading, setLoading] = useAtom(loadingAtom);
   const [error, setError] = useAtom(errorAtom);
