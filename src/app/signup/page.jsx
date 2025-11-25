@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { UserPlus, Mail, Lock, Loader2, ArrowLeft, CheckCircle } from "lucide-react";
 import Link from "next/link";
 
@@ -12,6 +11,8 @@ import { cn } from "@/lib/utils";
 
 export default function SignupPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/transcribe";
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -35,9 +36,8 @@ export default function SignupPage() {
     }
 
     setSuccess(true);
-    await signIn("credentials", { redirect: false, email: form.email, password: form.password });
     setLoading(false);
-    router.push("/");
+    router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   };
 
   return (
@@ -115,9 +115,9 @@ export default function SignupPage() {
               size="sm"
               variant="secondary"
               className="bg-white text-[#1b1145] hover:bg-white/90"
-              onClick={() => signIn("google", { callbackUrl: "/" })}
+              onClick={() => router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`)}
             >
-              Login dengan Google
+              Login
             </Button>
           </div>
         </CardContent>

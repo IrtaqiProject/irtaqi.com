@@ -1,7 +1,7 @@
 import { Worker } from "bullmq";
 
 import { getRedisConnection } from "@/lib/queue";
-import { transcribeAudioStub } from "@/lib/openai";
+import { transcribeAudioStub, transcribeWithWhisperAPI } from "@/lib/openai";
 
 const queueName = "transcription";
 
@@ -11,7 +11,11 @@ export const worker = new Worker(
     const { audioUrl, videoId, prompt } = job.data || {};
 
     // TODO: fetch the YouTube audio by videoId and upload buffer to Whisper.
-    return transcribeAudioStub(audioUrl ?? videoId ?? "unknown-source", prompt);
+    const source = audioUrl ?? videoId ?? "unknown-source";
+    if (process.env.WHISPER_API_KEY && audioUrl) {
+      return transcribeWithWhisperAPI(audioUrl, { prompt, language: "id" });
+    }
+    return transcribeAudioStub(source, prompt);
   },
   { connection: getRedisConnection() ?? undefined },
 );
