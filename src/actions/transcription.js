@@ -3,6 +3,13 @@
 import { z } from "zod";
 
 import { enqueueTranscriptionJob } from "@/lib/queue";
+import {
+  getTranscription,
+  listTranscriptions,
+  markTranscriptionCompleted,
+  markTranscriptionFailed,
+  markTranscriptionQueued,
+} from "@/lib/transcript-store";
 import { extractVideoId } from "@/lib/youtube";
 import { transcribeAudioStub, transcribeWithWhisperAPI } from "@/lib/openai";
 
@@ -31,6 +38,7 @@ export async function enqueueTranscriptionAction(input) {
     audioUrl,
     prompt,
   });
+  markTranscriptionQueued(job.id, { videoId, audioUrl, prompt });
   const state = await job.getState();
 
   return { jobId: job.id, state };
@@ -52,4 +60,31 @@ export async function transcribeDirectAction(input) {
     return transcribeWithWhisperAPI(audioUrl, { prompt, language: "id" });
   }
   return transcribeAudioStub(audioUrl, prompt);
+}
+
+const jobIdSchema = z.object({
+  jobId: z.string(),
+});
+
+export async function getTranscriptAction(input) {
+  const parsed = jobIdSchema.safeParse(input ?? {});
+  if (!parsed.success) {
+    throw new Error("JobId tidak valid");
+  }
+  const found = getTranscription(parsed.data.jobId);
+  return found ?? { jobId: parsed.data.jobId, status: "unknown" };
+}
+
+export async function listTranscriptsAction() {
+  return listTranscriptions();
+}
+
+export async function markTranscriptCompletedAction(jobId, transcript) {
+  markTranscriptionCompleted(jobId, transcript);
+  return getTranscription(jobId);
+}
+
+export async function markTranscriptFailedAction(jobId, error) {
+  markTranscriptionFailed(jobId, error);
+  return getTranscription(jobId);
 }

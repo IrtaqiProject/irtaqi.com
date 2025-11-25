@@ -1,12 +1,13 @@
 "use client";
 
 import { useAtom } from "jotai";
-import { Loader2, PlayCircle, Wand2, Rocket } from "lucide-react";
+import { Loader2, PlayCircle, Wand2, Rocket, Copy, Link as LinkIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
-import { enqueueTranscriptionAction } from "@/actions/transcription";
+import { enqueueTranscriptionAction, getTranscriptAction } from "@/actions/transcription";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,8 @@ export default function TranscribePage() {
   const [loading, setLoading] = useAtom(loadingAtom);
   const [result, setResult] = useAtom(resultAtom);
   const [error, setError] = useAtom(errorAtom);
+  const [polling, setPolling] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -51,15 +54,42 @@ export default function TranscribePage() {
     setLoading(true);
     setError("");
     setResult(null);
+    setPolling(false);
     try {
       const data = await enqueueTranscriptionAction({ youtubeUrl, prompt });
-      setResult(data);
+      setResult({ jobId: data.jobId, status: data.state ?? "queued", transcript: null });
+      setPolling(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to enqueue");
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let timer;
+    if (polling && result?.jobId) {
+      const tick = async () => {
+        try {
+          const latest = await getTranscriptAction({ jobId: result.jobId });
+          setResult((prev) => ({ ...prev, ...latest }));
+          if (latest?.status === "completed" || latest?.status === "failed") {
+            setPolling(false);
+            clearInterval(timer);
+          }
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Gagal memeriksa status");
+          setPolling(false);
+          clearInterval(timer);
+        }
+      };
+      tick();
+      timer = setInterval(tick, 3000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [polling, result?.jobId, setResult, setError]);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-gradient-to-br from-[#120b34] via-[#0f0a26] to-[#0a0b1a] pb-16">
@@ -126,13 +156,70 @@ export default function TranscribePage() {
             </Button>
           </form>
           {result ? (
-            <div className="mt-6 rounded-2xl border border-emerald-300/30 bg-emerald-500/15 p-4 text-sm shadow-inner">
-              <p className="font-semibold text-emerald-200">Job dikirim</p>
-              <p className="text-white/80">ID: {result.jobId}</p>
-              <p className="text-white/60">State: {result.state}</p>
-              <p className="text-white/60 text-xs mt-2">
+            <div className="mt-6 space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm shadow-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/60">Job ID</p>
+                  <p className="font-semibold text-white">{result.jobId}</p>
+                </div>
+                <span
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-semibold",
+                    result.status === "completed"
+                      ? "bg-emerald-400/20 text-emerald-100"
+                      : result.status === "failed"
+                        ? "bg-amber-400/20 text-amber-100"
+                        : "bg-white/10 text-white",
+                  )}
+                >
+                  {result.status ?? result.state ?? "queued"}
+                </span>
+              </div>
+              <p className="text-xs text-white/70">
                 Worker akan mengeksekusi transkripsi. Pastikan worker & Redis berjalan.
               </p>
+              {result.transcript?.text ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-white">Hasil transkrip</p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs text-white hover:bg-white/10"
+                        onClick={() => {
+                          navigator.clipboard.writeText(result.transcript.text ?? "").then(() => {
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 1500);
+                          });
+                        }}
+                      >
+                        <Copy className="mr-2 h-4 w-4" /> {copied ? "Tersalin" : "Copy"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="bg-white/10 text-white hover:bg-white/20"
+                        asChild
+                      >
+                        <Link href={`/transcripts/${result.jobId}`}>
+                          <LinkIcon className="mr-2 h-4 w-4" /> Lihat detail
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="max-h-64 overflow-auto rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-relaxed text-white/90">
+                    {result.transcript.text}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 rounded-xl border border-dashed border-white/15 bg-white/5 px-3 py-2 text-xs text-white/70">
+                  <Loader2 className={cn("h-4 w-4", polling ? "animate-spin" : "text-white/50")} />
+                  {result.status === "failed"
+                    ? "Gagal memproses. Coba ulang."
+                    : "Menunggu hasil transkrip dari worker..."}
+                </div>
+              )}
             </div>
           ) : null}
         </CardContent>
