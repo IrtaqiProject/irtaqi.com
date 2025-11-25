@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useAtom } from "jotai";
 import { useRouter, useSearchParams } from "next/navigation";
 import { UserPlus, Mail, Lock, Loader2, ArrowLeft, CheckCircle } from "lucide-react";
 import Link from "next/link";
@@ -9,15 +9,21 @@ import { signupAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import {
+  signupErrorAtom,
+  signupFormAtom,
+  signupLoadingAtom,
+  signupSuccessAtom,
+} from "@/state/auth-atoms";
 
 export default function SignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/transcribe";
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [form, setForm] = useAtom(signupFormAtom);
+  const [loading, setLoading] = useAtom(signupLoadingAtom);
+  const [error, setError] = useAtom(signupErrorAtom);
+  const [success, setSuccess] = useAtom(signupSuccessAtom);
 
   const onSubmit = async (e) => {
     e.preventDefault();

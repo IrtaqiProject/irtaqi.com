@@ -1,20 +1,22 @@
 "use client";
 
+import { useAtom } from "jotai";
 import { useSession, signIn, signOut } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Loader2, ShieldCheck, ShieldOff } from "lucide-react";
 
 import { healthCheck, healthSecret } from "@/actions/health";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { healthAtom, healthLoadingAtom, secretAtom, secretStateAtom } from "@/state/status-atoms";
 
 export function StatusPanel() {
   const { data: session } = useSession();
-  const [health, setHealth] = useState(null);
-  const [secret, setSecret] = useState(null);
-  const [isHealthLoading, setIsHealthLoading] = useState(true);
-  const [secretState, setSecretState] = useState({ loading: false, error: "" });
+  const [health, setHealth] = useAtom(healthAtom);
+  const [secret, setSecret] = useAtom(secretAtom);
+  const [isHealthLoading, setIsHealthLoading] = useAtom(healthLoadingAtom);
+  const [secretState, setSecretState] = useAtom(secretStateAtom);
 
   useEffect(() => {
     let active = true;
