@@ -1,30 +1,23 @@
 "use client";
 
-import { atom, useAtom } from "jotai";
+import { useAtom } from "jotai";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRef } from "react";
 import { Mail, Lock, LogIn, Loader2, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-const formAtomBase = atom({ email: "", password: "" });
-const loadingAtomBase = atom(false);
-const errorAtomBase = atom("");
+import { loginErrorAtom, loginFormAtom, loginLoadingAtom } from "@/state/auth-atoms";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/transcribe";
-  const formAtom = useRef(formAtomBase).current;
-  const loadingAtom = useRef(loadingAtomBase).current;
-  const errorAtom = useRef(errorAtomBase).current;
-  const [form, setForm] = useAtom(formAtom);
-  const [loading, setLoading] = useAtom(loadingAtom);
-  const [error, setError] = useAtom(errorAtom);
+  const [form, setForm] = useAtom(loginFormAtom);
+  const [loading, setLoading] = useAtom(loginLoadingAtom);
+  const [error, setError] = useAtom(loginErrorAtom);
 
   const onSubmit = async (e) => {
     e.preventDefault();

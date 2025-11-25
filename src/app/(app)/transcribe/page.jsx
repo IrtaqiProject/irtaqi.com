@@ -1,31 +1,21 @@
 "use client";
 
-import { atom, useAtom } from "jotai";
+import { useAtom } from "jotai";
 import { Loader2, PlayCircle, Wand2, Rocket } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 
 import { enqueueTranscriptionAction } from "@/actions/transcription";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-const youtubeAtomBase = atom("");
-const promptAtomBase = atom("Highlight ayat, hadits, dan poin praktis.");
-const loadingAtomBase = atom(false);
-const resultAtomBase = atom(null);
-const errorAtomBase = atom("");
+import { errorAtom, loadingAtom, promptAtom, resultAtom, youtubeAtom } from "@/state/transcribe-atoms";
 
 export default function TranscribePage() {
   const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const youtubeAtom = useRef(youtubeAtomBase).current;
-  const promptAtom = useRef(promptAtomBase).current;
-  const loadingAtom = useRef(loadingAtomBase).current;
-  const resultAtom = useRef(resultAtomBase).current;
-  const errorAtom = useRef(errorAtomBase).current;
   const [youtubeUrl, setYoutubeUrl] = useAtom(youtubeAtom);
   const [prompt, setPrompt] = useAtom(promptAtom);
   const [loading, setLoading] = useAtom(loadingAtom);
