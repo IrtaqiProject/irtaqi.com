@@ -56,6 +56,32 @@ function segmentsToPlainText(segments) {
     .join(" ");
 }
 
+function decodeHtmlEntities(str) {
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, "/");
+}
+
+function parseXmlTranscript(raw) {
+  const segments = [];
+  const regex = /<text[^>]*start="([^"]+)"[^>]*dur="([^"]+)"[^>]*>([\s\S]*?)<\/text>/gim;
+  let match;
+  while ((match = regex.exec(raw)) !== null) {
+    const start = Number(match[1] || 0);
+    const duration = Number(match[2] || 0);
+    const text = decodeHtmlEntities(match[3]?.replace(/\n+/g, " ").trim() || "");
+    if (!text) continue;
+    segments.push({ start, duration, text });
+  }
+  return segments;
+}
+
 async function fetchTranscriptSegments(videoId, lang) {
   const params = new URLSearchParams({
     server_vid: videoId,
@@ -77,6 +103,12 @@ async function fetchTranscriptSegments(videoId, lang) {
   try {
     json = JSON.parse(raw);
   } catch (err) {
+    if (raw.includes("<transcript")) {
+      const segments = parseXmlTranscript(raw);
+      if (segments.length) {
+        return segments;
+      }
+    }
     const snippet = raw.trim().slice(0, 120);
     throw new Error(
       `Endpoint transcript mengembalikan non-JSON (mungkin diblokir/HTML). Cuplikan: ${snippet || "empty"}`,
