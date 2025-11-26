@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "Irtaqi AI Boilerplate",
   description:
-    "Next.js + Tailwind + BullMQ + NextAuth starter for YouTube/Whisper/diagram tooling.",
+    "Next.js + Tailwind + NextAuth starter untuk YouTube transcript, LLM ringkasan/Q&A/mindmap, dan Postgres.",
 };
 
 export default function RootLayout({ children }) {

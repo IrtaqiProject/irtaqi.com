@@ -6,17 +6,18 @@ const sample = `
 sequenceDiagram
   autonumber
   participant U as User
-  participant N as Next.js App
-  participant Q as BullMQ
-  participant W as Worker
-  participant O as OpenAI Whisper
-  U->>N: Server Action enqueueTranscription (videoId)
-  N->>Q: Add job (transcription)
-  Q-->>W: Pull job
-  W->>O: Transcribe audio
-  O-->>W: Transcript text
-  W-->>N: Store transcription (server-side)
-  N-->>U: Server action / SSE update
+  participant N as Next.js Server Action
+  participant Y as YouTube Transcript/SRT
+  participant L as LLM
+  participant P as Postgres
+  U->>N: Submit YouTube URL + prompt
+  N->>Y: Fetch transcript / SRT
+  Y-->>N: Transcript text
+  N->>L: Ringkasan + Q&A + mindmap
+  L-->>N: JSON hasil
+  N->>P: Simpan transcript + hasil
+  P-->>N: Record ID + timestamp
+  N-->>U: Kirim hasil ke frontend
 `;
 
 export default function MermaidPage() {
@@ -38,7 +39,7 @@ export default function MermaidPage() {
         </Button>
       </div>
 
-      <MermaidViewer chart={sample} title="Queue + Whisper flow" />
+      <MermaidViewer chart={sample} title="Server action flow" />
 
       <Card>
         <CardHeader>
@@ -50,10 +51,11 @@ export default function MermaidPage() {
             <code>{`import { MermaidViewer } from "@/components/mermaid-viewer";
 
 const chart = \`graph TD
-  A[YouTube] -->|Data API| B(Download)
-  B --> C[Queue]
-  C --> D[Whisper]
-  D --> E[Client UI]
+  A[User URL] --> B[Server Action]
+  B --> C[YouTube Transcript]
+  C --> D[LLM Summary/Q&A]
+  D --> E[Postgres]
+  E --> F[Client UI]
 \`;
 
 <MermaidViewer chart={chart} title="My flow" />`}</code>
