@@ -28,6 +28,14 @@ POSTGRES_URL=postgres://user:pass@host:5432/dbname
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
+## Database migration
+
+Jalankan setelah Postgres siap supaya tabel `transcripts` tersedia:
+
+```bash
+bun run migrate
+```
+
 ## Server actions (no custom API routes)
 
 - `processYoutubeTranscriptionAction` — ambil transcript/SRT, panggil LLM (ringkas/Q&A/mindmap), simpan ke Postgres.

@@ -4,7 +4,6 @@ import { nanoid } from "nanoid";
 const globalStore = globalThis;
 
 let pool = globalStore._pgPool;
-let schemaEnsured = globalStore._pgSchemaEnsured ?? false;
 let dbDisabled = globalStore._pgDisabled ?? false;
 let memoryStore = globalStore._memoryTranscriptStore ?? [];
 
@@ -37,40 +36,6 @@ export function getDbPool() {
   return createPool();
 }
 
-async function ensureSchema() {
-  if (dbDisabled || schemaEnsured) return;
-
-  const db = createPool();
-  if (!db) return;
-
-  try {
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS transcripts (
-        id TEXT PRIMARY KEY,
-        video_id TEXT,
-        youtube_url TEXT,
-        prompt TEXT,
-        transcript TEXT,
-        srt TEXT,
-        summary JSONB,
-        qa JSONB,
-        mindmap JSONB,
-        model TEXT,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `);
-    schemaEnsured = true;
-    globalStore._pgSchemaEnsured = true;
-  } catch (err) {
-    dbDisabled = true;
-    globalStore._pgDisabled = true;
-    console.warn(
-      "[db] Menonaktifkan Postgres (gagal membuat schema). Periksa POSTGRES_URL/DATABASE_URL.",
-      err.message,
-    );
-  }
-}
-
 function toJsonb(value) {
   return value ? JSON.stringify(value) : null;
 }
@@ -97,8 +62,6 @@ export async function saveTranscriptResult({
   mindmap,
   model,
 }) {
-  await ensureSchema();
-
   if (dbDisabled) {
     return saveToMemory({
       video_id: videoId ?? null,
@@ -165,7 +128,13 @@ export async function saveTranscriptResult({
   } catch (err) {
     dbDisabled = true;
     globalStore._pgDisabled = true;
-    console.warn("[db] Postgres insert gagal, fallback ke memory store. Periksa koneksi.", err.message);
+
+    const migrationHint =
+      err?.code === "42P01"
+        ? "Table transcripts belum ada. Jalankan migration dengan `bun run migrate` sebelum menjalankan app."
+        : "Postgres insert gagal, fallback ke memory store. Periksa koneksi.";
+
+    console.warn(`[db] ${migrationHint}`, err.message);
     return saveToMemory({
       video_id: videoId ?? null,
       youtube_url: youtubeUrl ?? null,
