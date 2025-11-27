@@ -3,14 +3,109 @@
 import { useAtom } from "jotai";
 import { Loader2, PlayCircle, Wand2, Rocket } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
 import { processYoutubeTranscriptionAction } from "@/actions/transcription";
+import { MindmapCanvas } from "@/components/mindmap-canvas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { errorAtom, loadingAtom, promptAtom, resultAtom, youtubeAtom } from "@/state/transcribe-atoms";
+
+function sanitizeLabel(label, fallback = "Node") {
+  const clean = (label ?? "").toString().replace(/\s+/g, " ").replace(/["<>]/g, "").trim();
+  return clean || fallback;
+}
+
+function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
+  if (!Array.isArray(nodes) || nodes.length === 0) return null;
+
+  const usedIds = new Set();
+  const makeSafeId = (value, fallback) => {
+    const base = (value ?? "").toString().trim() || fallback;
+    const safeBase = base.replace(/[^a-zA-Z0-9_]/g, "_") || fallback;
+    let candidate = safeBase;
+    let counter = 1;
+    while (usedIds.has(candidate)) {
+      candidate = `${safeBase}_${counter}`;
+      counter += 1;
+    }
+    usedIds.add(candidate);
+    return candidate;
+  };
+
+  const map = new Map();
+  nodes.forEach((node, idx) => {
+    const key = node?.id ?? `node_${idx}`;
+    map.set(key, {
+      safeId: makeSafeId(key, `node_${idx}`),
+      label: sanitizeLabel(node?.label ?? node?.title, `Node ${idx + 1}`),
+      children: Array.isArray(node?.children) ? node.children.filter(Boolean) : [],
+    });
+  });
+
+  for (const node of map.values()) {
+    for (const child of node.children) {
+      if (!map.has(child)) {
+        map.set(child, {
+          safeId: makeSafeId(child, `child_${map.size}`),
+          label: sanitizeLabel(child, "Subtopik"),
+          children: [],
+        });
+      }
+    }
+  }
+
+  const keys = Array.from(map.keys());
+  const referenced = new Set();
+  map.forEach((node) => node.children.forEach((child) => referenced.add(child)));
+  const rootKey = map.has("root") ? "root" : keys.find((key) => !referenced.has(key)) ?? keys[0];
+  if (!rootKey) return null;
+
+  const rootNode = map.get(rootKey);
+  if (rootNode) {
+    rootNode.label = sanitizeLabel(title, rootNode.label || "Peta Pikiran");
+  }
+
+  const lines = ["graph TD"];
+  const defined = new Set();
+  const visited = new Set();
+
+  const defineNode = (key) => {
+    if (defined.has(key)) return;
+    const node = map.get(key);
+    if (!node) return;
+    defined.add(key);
+    lines.push(`  ${node.safeId}["${node.label}"]`);
+  };
+
+  const walk = (key) => {
+    if (visited.has(key)) return;
+    visited.add(key);
+    const node = map.get(key);
+    if (!node) return;
+    defineNode(key);
+    for (const childKey of node.children) {
+      defineNode(childKey);
+      const childNode = map.get(childKey);
+      lines.push(`  ${node.safeId} --> ${childNode?.safeId ?? makeSafeId(childKey, "child")}`);
+      walk(childKey);
+    }
+  };
+
+  walk(rootKey);
+
+  for (const key of map.keys()) {
+    if (key === rootKey || visited.has(key)) continue;
+    defineNode(key);
+    const rootSafe = map.get(rootKey)?.safeId ?? "root";
+    const node = map.get(key);
+    lines.push(`  ${rootSafe} --> ${node?.safeId ?? makeSafeId(key, "node")}`);
+  }
+
+  return lines.join("\n");
+}
 
 export default function TranscribePage() {
   const { status } = useSession();
@@ -21,6 +116,9 @@ export default function TranscribePage() {
   const [loading, setLoading] = useAtom(loadingAtom);
   const [result, setResult] = useAtom(resultAtom);
   const [error, setError] = useAtom(errorAtom);
+  const [mindmapChart, setMindmapChart] = useState("");
+  const [mindmapError, setMindmapError] = useState("");
+  const [mindmapLoading, setMindmapLoading] = useState(false);
   const bulletPoints = result?.summary?.bullet_points ?? [];
   const questions = result?.qa?.sample_questions ?? [];
   const mindmapNodes = result?.mindmap?.nodes ?? [];
@@ -55,6 +153,8 @@ export default function TranscribePage() {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setMindmapChart("");
+    setMindmapError("");
     setResult(null);
     try {
       const data = await processYoutubeTranscriptionAction({ youtubeUrl, prompt });
@@ -63,6 +163,43 @@ export default function TranscribePage() {
       setError(err instanceof Error ? err.message : "Gagal memproses transcript");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBuildMindmap = () => {
+    setMindmapLoading(true);
+    setMindmapError("");
+    setMindmapChart("");
+
+    try {
+      const nodesForMap =
+        mindmapNodes.length > 0
+          ? mindmapNodes
+          : bulletPoints.length
+            ? [
+                {
+                  id: "root",
+                  label: result?.summary?.short ?? "Topik Utama",
+                  children: bulletPoints.map((_, idx) => `bp_${idx + 1}`),
+                },
+                ...bulletPoints.map((point, idx) => ({
+                  id: `bp_${idx + 1}`,
+                  label: point,
+                  children: [],
+                })),
+              ]
+            : [];
+
+      const chart = buildMindmapChart(nodesForMap, result?.mindmap?.title ?? "Peta Pikiran");
+      if (!chart) {
+        setMindmapError("Mindmap belum bisa dibuat. Pastikan ringkasan sudah tersedia.");
+        return;
+      }
+      setMindmapChart(chart);
+    } catch (err) {
+      setMindmapError(err instanceof Error ? err.message : "Gagal membuat peta pikiran");
+    } finally {
+      setMindmapLoading(false);
     }
   };
 
@@ -197,13 +334,16 @@ export default function TranscribePage() {
                         Daftar node untuk digambar di frontend.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-2">
+                    <CardContent className="space-y-3">
                       {mindmapNodes.length ? (
                         <ul className="space-y-1 text-sm text-white/80">
-                          {mindmapNodes.slice(0, 6).map((node) => (
-                            <li key={node.id} className="flex items-center gap-2">
+                          {mindmapNodes.slice(0, 6).map((node, idx) => (
+                            <li
+                              key={node.id ?? node.label ?? node.title ?? idx}
+                              className="flex items-center gap-2"
+                            >
                               <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-mono text-white/80">
-                                {node.id}
+                                {node.id ?? `node-${idx + 1}`}
                               </span>
                               <span>{node.label ?? node.title ?? "Node"}</span>
                             </li>
@@ -215,9 +355,32 @@ export default function TranscribePage() {
                       ) : (
                         <p className="text-sm text-white/60">Belum ada node mindmap.</p>
                       )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={handleBuildMindmap}
+                        disabled={!result || mindmapLoading || (!mindmapNodes.length && !bulletPoints.length)}
+                        className="w-full justify-center bg-white/15 text-white hover:bg-white/20"
+                      >
+                        {mindmapLoading ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Wand2 className="mr-2 h-4 w-4" />
+                        )}
+                        Buat Peta Pikiran
+                      </Button>
+                      {mindmapError ? <p className="text-xs text-amber-200">{mindmapError}</p> : null}
                     </CardContent>
                   </Card>
                 </div>
+
+                {mindmapChart ? (
+                  <MindmapCanvas
+                    chart={mindmapChart}
+                    title={result?.mindmap?.title ?? "Peta Pikiran Kajian"}
+                  />
+                ) : null}
 
                 {result.summary?.detailed ? (
                   <Card className="border-white/10 bg-white/10 text-white">
