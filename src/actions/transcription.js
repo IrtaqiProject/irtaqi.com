@@ -2,38 +2,57 @@
 
 import { z } from "zod";
 
-import { enqueueTranscriptionJob } from "@/lib/queue";
-import { extractVideoId } from "@/lib/youtube";
-import { transcribeAudioStub, transcribeWithWhisperAPI } from "@/lib/openai";
+import { saveTranscriptResult } from "@/lib/db";
+import { generateInsightsFromTranscript, transcribeAudioStub } from "@/lib/openai";
+import { extractVideoId, fetchYoutubeTranscript } from "@/lib/youtube";
 
-const enqueueSchema = z.object({
-  videoId: z.string().optional(),
-  youtubeUrl: z.string().url().optional(),
-  audioUrl: z.string().url().optional(),
+const processSchema = z.object({
+  youtubeUrl: z.string().url(),
   prompt: z.string().optional(),
 });
 
-export async function enqueueTranscriptionAction(input) {
-  const parsed = enqueueSchema.safeParse(input ?? {});
+export async function processYoutubeTranscriptionAction(input) {
+  const parsed = processSchema.safeParse(input ?? {});
   if (!parsed.success) {
     throw new Error("Input tidak valid");
   }
 
-  const { audioUrl, youtubeUrl, prompt } = parsed.data;
-  const videoId = parsed.data.videoId ?? (youtubeUrl ? extractVideoId(youtubeUrl) : null);
-
-  if (!videoId && !audioUrl) {
-    throw new Error("Wajib isi videoId/youtubeUrl atau audioUrl");
+  const videoId = extractVideoId(parsed.data.youtubeUrl);
+  if (!videoId) {
+    throw new Error("URL YouTube tidak valid");
   }
 
-  const job = await enqueueTranscriptionJob({
-    videoId: videoId ?? undefined,
-    audioUrl,
-    prompt,
+  const transcript = await fetchYoutubeTranscript(videoId);
+  const insights = await generateInsightsFromTranscript(transcript.text, {
+    prompt: parsed.data.prompt,
+    videoTitle: `https://www.youtube.com/watch?v=${videoId}`,
   });
-  const state = await job.getState();
 
-  return { jobId: job.id, state };
+  const saved = await saveTranscriptResult({
+    videoId,
+    youtubeUrl: parsed.data.youtubeUrl,
+    prompt: parsed.data.prompt ?? "",
+    transcriptText: transcript.text,
+    srt: transcript.srt,
+    summary: insights.summary,
+    qa: insights.qa,
+    mindmap: insights.mindmap,
+    model: insights.model,
+  });
+
+  return {
+    id: saved?.id ?? null,
+    videoId,
+    youtubeUrl: parsed.data.youtubeUrl,
+    summary: insights.summary,
+    qa: insights.qa,
+    mindmap: insights.mindmap,
+    transcript: transcript.text,
+    srt: transcript.srt,
+    model: insights.model,
+    createdAt: saved?.created_at ?? null,
+    lang: transcript.lang,
+  };
 }
 
 const transcribeSchema = z.object({
@@ -48,8 +67,5 @@ export async function transcribeDirectAction(input) {
   }
 
   const { audioUrl, prompt } = parsed.data;
-  if (process.env.WHISPER_API_KEY) {
-    return transcribeWithWhisperAPI(audioUrl, { prompt, language: "id" });
-  }
   return transcribeAudioStub(audioUrl, prompt);
 }

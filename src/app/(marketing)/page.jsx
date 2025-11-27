@@ -7,8 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 const aiPillars = [
   {
     title: "Transcribe lectures",
-    description:
-      "Proses otomatis kajian Indonesia dengan Whisper untuk mendapatkan transcript yang bisa diedit.",
+    description: "Proses otomatis kajian Indonesia untuk mendapatkan transcript yang bisa diedit.",
     icon: <BookOpen className="h-5 w-5 text-emerald-400" />,
     badge: "Step 1",
   },

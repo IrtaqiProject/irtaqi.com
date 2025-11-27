@@ -1,6 +1,6 @@
 # Irtaqi AI boilerplate
 
-Next.js (App Router) + Tailwind + shadcn-style UI + NextAuth + BullMQ queueing, ready for YouTube ingest and Whisper/Hugging Face transcription. Designed to run on Coolify for both frontend and backend.
+Next.js (App Router) + Tailwind + shadcn-style UI + NextAuth dengan alur server action langsung (YouTube transcript → LLM ringkasan/Q&A/mindmap → Postgres). Tidak ada queue/Redis/worker terpisah.
 
 ## Quickstart
 
@@ -8,7 +8,6 @@ Next.js (App Router) + Tailwind + shadcn-style UI + NextAuth + BullMQ queueing, 
 bun install         # install deps
 bun dev             # start Next.js dev server
 bun run lint        # lint
-bun run worker      # start BullMQ worker (separate terminal)
 ```
 
 Open http://localhost:3000 to see the starter UI. Mermaid sandbox lives at `/mermaid`.
@@ -24,25 +23,33 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 YOUTUBE_API_KEY=...
 OPENAI_API_KEY=...             # optional (fallback stub used if missing)
-REDIS_URL=redis://localhost:6379
+POSTGRES_URL=postgres://user:pass@host:5432/dbname
+# POSTGRES_SSL=true            # set true jika butuh SSL
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-WHISPER_API_KEY=...            # for whisperapi.com
+```
+
+## Database migration
+
+Jalankan setelah Postgres siap supaya tabel `transcripts` tersedia:
+
+```bash
+bun run migrate
 ```
 
 ## Server actions (no custom API routes)
 
-- `enqueueTranscriptionAction` — enqueue transcription `{ videoId|youtubeUrl|audioUrl, prompt }`.
-- `transcribeDirectAction` — server-side transcription (WhisperAPI or stub).
+- `processYoutubeTranscriptionAction` — ambil transcript/SRT, panggil LLM (ringkas/Q&A/mindmap), simpan ke Postgres.
+- `transcribeDirectAction` — server-side transcription stub untuk audio URL.
 - `healthCheck` / `healthSecret` — public/protected health ping.
 - `signupAction` — create user in in-memory store.
 - `fetchYoutubeMetaAction` / `ytdlpInfoAction` — YouTube metadata and yt-dlp JSON wrapper.
 - `GET|POST /api/auth/[...nextauth]` — NextAuth (Google) still uses the built-in route.
 
-## Queue + workers
+## Transcript + LLM pipeline
 
-- Queue helper: `src/lib/queue.js`
-- Worker stub: `src/queue/worker.js` (uses the same Redis connection).
-- Jobs have retries and exponential backoff; swap the stub with real Whisper/HF logic in `src/lib/openai.js`.
+- URL YouTube dikirim dari frontend via server action/API.
+- Server mengambil transcript/SRT, kirim ke LLM untuk ringkasan, Q&A, dan mindmap JSON.
+- Hasil dan transcript disimpan ke Postgres, lalu dikirim balik ke frontend tanpa antrean.
 
 ## UI + diagrams
 
@@ -55,15 +62,10 @@ WHISPER_API_KEY=...            # for whisperapi.com
 - **Backend (VPS on IDcloudhost)**  
   - Build: `bun install && bun run build`  
   - Start: `bun run start` (or `pm2 start bun -- run start`)  
-  - Worker: run separately `bun run src/queue/worker.js` (ensure Redis reachable).  
-  - Expose `PORT` (default 3000) and set all `.env` values on the VPS, including `REDIS_URL`.
+  - Expose `PORT` (default 3000) and set `.env` values termasuk `POSTGRES_URL`.
 
 - **Frontend (Cloudflare Pages)**  
   - Framework preset: Next.js.  
   - Build command: `bun install && bun run build`  
   - Output directory: `.next` (Cloudflare handles).  
   - Set `NEXT_PUBLIC_APP_URL` to your Pages domain and point `NEXTAUTH_URL` to the backend URL on the VPS.
-
-- **Redis / queue**  
-  - Use IDcloudhost-managed Redis or a container on the VPS; set `REDIS_URL` for both app and worker.  
-  - Keep `INTERNAL_API_TOKEN` secret; only workers/internal callers should use it.

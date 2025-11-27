@@ -7,16 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "worker": "bun run src/queue/worker.js",
-    "dev:all": "concurrently \"bun dev\" \"bun run src/queue/worker.js\""
+    "migrate": "node scripts/migrate.js"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
     "bcryptjs": "^2.4.3",
-    "bullmq": "^5.29.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
-    "ioredis": "^5.4.1",
     "jotai": "^2.15.1",
     "lucide-react": "^0.471.0",
     "mermaid": "^11.3.0",
@@ -24,6 +21,7 @@
     "next": "16.0.3",
     "next-auth": "^4.24.10",
     "openai": "^4.85.2",
+    "pg": "^8.13.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "tailwind-merge": "^2.5.5",
