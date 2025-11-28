@@ -18,25 +18,6 @@ function sanitizeLabel(label, fallback = "Node") {
   return clean || fallback;
 }
 
-<<<<<<< Updated upstream
-function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
-  if (!Array.isArray(nodes) || nodes.length === 0) return null;
-
-  const usedIds = new Set();
-  const makeSafeId = (value, fallback) => {
-    const base = (value ?? "").toString().trim() || fallback;
-    const safeBase = base.replace(/[^a-zA-Z0-9_]/g, "_") || fallback;
-    let candidate = safeBase;
-    let counter = 1;
-    while (usedIds.has(candidate)) {
-      candidate = `${safeBase}_${counter}`;
-      counter += 1;
-    }
-    usedIds.add(candidate);
-    return candidate;
-  };
-
-=======
 function sanitizeNote(note) {
   const clean = (note ?? "").toString().replace(/\s+/g, " ").replace(/["<>]/g, "").trim();
   return clean || "";
@@ -45,20 +26,13 @@ function sanitizeNote(note) {
 function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
   if (!Array.isArray(nodes) || nodes.length === 0) return null;
 
->>>>>>> Stashed changes
   const map = new Map();
   nodes.forEach((node, idx) => {
     const key = node?.id ?? `node_${idx}`;
     map.set(key, {
-<<<<<<< Updated upstream
-      safeId: makeSafeId(key, `node_${idx}`),
-      label: sanitizeLabel(node?.label ?? node?.title, `Node ${idx + 1}`),
-      children: Array.isArray(node?.children) ? node.children.filter(Boolean) : [],
-=======
       label: sanitizeLabel(node?.label ?? node?.title, `Node ${idx + 1}`),
       children: Array.isArray(node?.children) ? node.children.filter(Boolean) : [],
       note: sanitizeNote(node?.note),
->>>>>>> Stashed changes
     });
   });
 
@@ -66,15 +40,9 @@ function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
     for (const child of node.children) {
       if (!map.has(child)) {
         map.set(child, {
-<<<<<<< Updated upstream
-          safeId: makeSafeId(child, `child_${map.size}`),
-          label: sanitizeLabel(child, "Subtopik"),
-          children: [],
-=======
           label: sanitizeLabel(child, "Subtopik"),
           children: [],
           note: "",
->>>>>>> Stashed changes
         });
       }
     }
@@ -83,15 +51,11 @@ function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
   const keys = Array.from(map.keys());
   const referenced = new Set();
   map.forEach((node) => node.children.forEach((child) => referenced.add(child)));
-<<<<<<< Updated upstream
-  const rootKey = map.has("root") ? "root" : keys.find((key) => !referenced.has(key)) ?? keys[0];
-=======
   const rootKey = map.has("n1")
     ? "n1"
     : map.has("root")
       ? "root"
       : keys.find((key) => !referenced.has(key)) ?? keys[0];
->>>>>>> Stashed changes
   if (!rootKey) return null;
 
   const rootNode = map.get(rootKey);
@@ -99,50 +63,14 @@ function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
     rootNode.label = sanitizeLabel(title, rootNode.label || "Peta Pikiran");
   }
 
-<<<<<<< Updated upstream
-  const lines = ["graph TD"];
-  const defined = new Set();
-  const visited = new Set();
-
-  const defineNode = (key) => {
-    if (defined.has(key)) return;
-    const node = map.get(key);
-    if (!node) return;
-    defined.add(key);
-    lines.push(`  ${node.safeId}["${node.label}"]`);
-  };
-
-  const walk = (key) => {
-=======
   const lines = ["mindmap"];
   const visited = new Set();
 
   const walk = (key, depth) => {
->>>>>>> Stashed changes
     if (visited.has(key)) return;
     visited.add(key);
     const node = map.get(key);
     if (!node) return;
-<<<<<<< Updated upstream
-    defineNode(key);
-    for (const childKey of node.children) {
-      defineNode(childKey);
-      const childNode = map.get(childKey);
-      lines.push(`  ${node.safeId} --> ${childNode?.safeId ?? makeSafeId(childKey, "child")}`);
-      walk(childKey);
-    }
-  };
-
-  walk(rootKey);
-
-  for (const key of map.keys()) {
-    if (key === rootKey || visited.has(key)) continue;
-    defineNode(key);
-    const rootSafe = map.get(rootKey)?.safeId ?? "root";
-    const node = map.get(key);
-    lines.push(`  ${rootSafe} --> ${node?.safeId ?? makeSafeId(key, "node")}`);
-  }
-=======
     const note = node.note ? ` — ${node.note}` : "";
     const line = `${"  ".repeat(depth)}${node.label}${note}`;
     lines.push(line);
@@ -155,7 +83,6 @@ function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
     if (visited.has(key)) return;
     lines.push(`  ${node.label}`);
   });
->>>>>>> Stashed changes
 
   return lines.join("\n");
 }
@@ -244,24 +171,14 @@ export default function TranscribePage() {
               ]
             : [];
 
-<<<<<<< Updated upstream
-      const chart = buildMindmapChart(nodesForMap, result?.mindmap?.title ?? "Peta Pikiran");
-      if (!chart) {
-        setMindmapError("Mindmap belum bisa dibuat. Pastikan ringkasan sudah tersedia.");
-=======
       const chart = buildMindmapChart(nodesForMap, result?.mindmap?.title ?? "Peta Pikiran Kajian");
       if (!chart) {
         setMindmapError("Mind map belum bisa dibuat. Pastikan ringkasan sudah tersedia.");
->>>>>>> Stashed changes
         return;
       }
       setMindmapChart(chart);
     } catch (err) {
-<<<<<<< Updated upstream
-      setMindmapError(err instanceof Error ? err.message : "Gagal membuat peta pikiran");
-=======
       setMindmapError(err instanceof Error ? err.message : "Gagal membuat mind map");
->>>>>>> Stashed changes
     } finally {
       setMindmapLoading(false);
     }
@@ -400,22 +317,6 @@ export default function TranscribePage() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {mindmapNodes.length ? (
-<<<<<<< Updated upstream
-                        <ul className="space-y-1 text-sm text-white/80">
-                          {mindmapNodes.slice(0, 6).map((node, idx) => (
-                            <li
-                              key={node.id ?? node.label ?? node.title ?? idx}
-                              className="flex items-center gap-2"
-                            >
-                              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-mono text-white/80">
-                                {node.id ?? `node-${idx + 1}`}
-                              </span>
-                              <span>{node.label ?? node.title ?? "Node"}</span>
-                            </li>
-                          ))}
-                          {mindmapNodes.length > 6 ? (
-                            <li className="text-xs text-white/60">+{mindmapNodes.length - 6} node lain</li>
-=======
                         <>
                           <ul className="space-y-1 text-sm text-white/80">
                             {mindmapNodes.slice(0, 6).map((node, idx) => (
@@ -463,7 +364,6 @@ export default function TranscribePage() {
                                 {mindmapOutline}
                               </pre>
                             </div>
->>>>>>> Stashed changes
                           ) : null}
                         </>
                       ) : (
@@ -482,11 +382,7 @@ export default function TranscribePage() {
                         ) : (
                           <Wand2 className="mr-2 h-4 w-4" />
                         )}
-<<<<<<< Updated upstream
-                        Buat Peta Pikiran
-=======
                         Buat Mind Map (Mermaid)
->>>>>>> Stashed changes
                       </Button>
                       {mindmapError ? <p className="text-xs text-amber-200">{mindmapError}</p> : null}
                     </CardContent>
@@ -494,14 +390,7 @@ export default function TranscribePage() {
                 </div>
 
                 {mindmapChart ? (
-<<<<<<< Updated upstream
-                  <MindmapCanvas
-                    chart={mindmapChart}
-                    title={result?.mindmap?.title ?? "Peta Pikiran Kajian"}
-                  />
-=======
                   <MindmapCanvas chart={mindmapChart} title={result?.mindmap?.title ?? "Peta Pikiran Kajian"} />
->>>>>>> Stashed changes
                 ) : null}
 
                 {result.summary?.detailed ? (
