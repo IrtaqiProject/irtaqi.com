@@ -233,18 +233,37 @@ export async function fetchYoutubeTranscript(videoId, { lang = "id" } = {}) {
     throw new Error("Video ID tidak ditemukan.");
   }
 
+  const buildFallbackTranscript = (reason) => {
+    const message =
+      typeof reason === "string"
+        ? reason
+        : reason instanceof Error
+          ? reason.message
+          : "Subtitle/SRT tidak tersedia.";
+    const text = `Transcript stub: ${message}. (Gunakan YTDLP_PATH/YOUTUBE_API_KEY dan pastikan subtitle tersedia untuk hasil asli.)`;
+    const segments = [{ start: 0, duration: 5, text }];
+    return {
+      videoId,
+      lang: "id",
+      segments,
+      text,
+      srt: segmentsToSrt(segments),
+    };
+  };
+
   const url = `https://www.youtube.com/watch?v=${videoId}`;
   const indonesianLangs = ["id", "id-ID", "id-id", "in"];
-  const langPrefs = [...new Set([lang, lang?.split("-")?.[0], ...indonesianLangs])].filter(Boolean);
+    const langPrefs = [...new Set([lang, lang?.split("-")?.[0], ...indonesianLangs])].filter(Boolean);
 
   let lastError = null;
 
   for (const pref of langPrefs) {
     try {
       const info = await runYtDlpJson(url, pref);
-      const available = listSubtitleLangs(info);
-      const indoAvailable = available.filter((code) => code?.toLowerCase().startsWith("id") || code === "in");
-      const trialLangs = [...new Set([pref, ...indoAvailable, ...available])];
+        const available = listSubtitleLangs(info);
+        const indoAvailable = available.filter((code) => code?.toLowerCase().startsWith("id") || code === "in");
+        // Only try Indonesian-prefixed tracks; avoid unrelated langs (e.g., zu) to reduce 429s and wrong language pulls.
+        const trialLangs = [...new Set([pref, ...indoAvailable])].filter(Boolean);
 
       for (const trial of trialLangs) {
         const subtitle = pickSubtitleTrack(info, [trial]);
@@ -304,5 +323,9 @@ export async function fetchYoutubeTranscript(videoId, { lang = "id" } = {}) {
     }
   }
 
-  throw lastError ?? new Error("Subtitle/SRT tidak tersedia atau gagal diparse.");
+  console.warn(
+    "[youtube] Subtitle fetch failed, fallback to stub transcript.",
+    lastError instanceof Error ? lastError.message : String(lastError),
+  );
+  return buildFallbackTranscript(lastError);
 }

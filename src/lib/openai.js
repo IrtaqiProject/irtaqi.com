@@ -39,10 +39,10 @@ function buildStubInsights(transcript, prompt) {
     mindmap: {
       title: "Mindmap Kajian",
       nodes: [
-        { id: "root", label: "Topik Utama", children: ["p1", "p2", "p3"] },
-        { id: "p1", label: "Subtopik 1" },
-        { id: "p2", label: "Subtopik 2" },
-        { id: "p3", label: "Subtopik 3" },
+        { id: "n1", label: "Topik Utama", children: ["n2", "n3", "n4"], note: "Akar mindmap" },
+        { id: "n2", label: "Subtopik 1", children: [] },
+        { id: "n3", label: "Subtopik 2", children: [] },
+        { id: "n4", label: "Subtopik 3", children: [] },
       ],
     },
     model: "stub-no-openai-key",
@@ -59,14 +59,161 @@ export async function generateInsightsFromTranscript(transcript, { prompt, video
   }
 
   const client = getOpenAIClient();
-  const systemPrompt = [
-    "Anda adalah asisten yang meringkas kajian/ceramah Bahasa Indonesia.",
-    "Hasilkan JSON dengan kunci: summary { short, bullet_points[], detailed },",
-    "qa { sample_questions[] dengan question & answer }, dan mindmap { title, nodes[].",
-    "Nodes minimal punya id dan label, boleh ada children: [] berupa id lain }.",
-    "Tulis ringkasan dalam Bahasa Indonesia, fokus pada dalil (ayat/hadits) jika ada, dan poin praktis.",
-    "Pastikan respons JSON valid.",
-  ].join(" ");
+  const systemPrompt = `
+Anda adalah asisten yang meringkas kajian/ceramah berbahasa Indonesia dan mengubahnya menjadi ringkasan terstruktur serta mind map.
+
+INPUT:
+Satu teks transkrip kajian/ceramah dalam Bahasa Indonesia (tanpa markup lain).
+
+OUTPUT:
+Jawab HANYA dengan satu objek JSON valid (tanpa komentar, tanpa teks di luar JSON) dengan struktur:
+
+{
+  "summary": {
+    "short": string,
+    "bullet_points": string[],
+    "detailed": string
+  },
+  "qa": {
+    "sample_questions": [
+      { "question": string, "answer": string }
+    ]
+  },
+  "mindmap": {
+    "title": string,
+    "nodes": [
+      {
+        "id": string,
+        "label": string,
+        "children": string[],
+        "note": string (opsional)
+      }
+    ]
+  }
+}
+
+KETENTUAN UMUM:
+- Gunakan Bahasa Indonesia yang jelas dan ringkas.
+- Fokus pada:
+  - Dalil (ayat Al-Qur’an dan hadits) yang disebutkan.
+  - Poin praktis: doa, amalan, sikap hati, langkah konkret.
+- Pastikan JSON benar-benar valid (kutip ganda untuk string, tidak ada koma terakhir, dll).
+- Jangan menulis apa pun di luar struktur JSON.
+- **Mind map WAJIB disusun langsung dari isi transkrip, bukan dari hasil ringkasan.** 
+  - Baca dan analisis transkrip terlebih dahulu.
+  - Identifikasi topik, subtopik, contoh, dan dalil langsung dari kalimat/paragraf di transkrip.
+  - Summary boleh memanfaatkan struktur mind map, tetapi mind map tidak boleh hanya turunan dari summary.
+
+RINCIAN BAGIAN "summary":
+1. "short": 1–3 kalimat ringkasan paling inti dari kajian.
+2. "bullet_points":
+   - Berisi 5–15 butir.
+   - Setiap butir 1–2 kalimat.
+   - Utamakan: definisi masalah, sebab, akibat, solusi, dan dalil.
+3. "detailed":
+   - Ringkasan naratif 4–8 paragraf.
+   - Jelaskan alur: latar belakang masalah → penjelasan utama → dalil → solusi praktis → penutup.
+
+RINCIAN BAGIAN "qa":
+- "sample_questions": 5–10 pasang tanya–jawab.
+- Bentuk:
+  - "question": pertanyaan yang wajar ditanyakan jamaah (misal: “Apa yang dimaksud al-hamm dalam Islam?”).
+  - "answer": jawaban singkat–padat (2–6 kalimat), merujuk isi kajian.
+- Utamakan:
+  - Makna istilah penting (misal: al-hamm, al-huzn).
+  - Penjelasan dalil utama.
+  - Contoh amalan/doa untuk diamalkan sehari-hari.
+
+RINCIAN BAGIAN "mindmap":
+Tujuan: menghasilkan struktur mind map HIERARKIS yang SANGAT RINCI, dengan banyak cabang dan subcabang, seperti contoh gambar (satu topik utama di kiri, bercabang ke beberapa tema besar, lalu pecah lagi ke subtopik).
+
+1. ATURAN STRUKTUR:
+   a. Tentukan satu TOPIK UTAMA dari seluruh kajian:
+      - Tulis dalam 2–7 kata.
+      - Letakkan sebagai:
+        - "mindmap.title"
+        - Serta sebagai NODE akar (level 0).
+   b. Buat 4–8 CABANG UTAMA (level 1) dari topik utama:
+      - Contoh pola umum (sesuaikan dengan isi kajian):
+        - "Sifat Penyakit / Masalah"
+        - "Tiga Poros Waktu"
+        - "Universalitas Kegelisahan"
+        - "Sebab & Akar Masalah"
+        - "Solusi & Obat / Amalan"
+        - "Buah & Akhir / Hasil Ketaatan"
+      - Masing-masing cabang dengan label 1–5 kata.
+   c. Uraikan tiap cabang utama menjadi SUBTOPIK (level 2, level 3, dan seterusnya):
+      - Ambil poin-poin penting langsung dari transkrip:
+        - daftar contoh (orang miskin, orang kaya, rakyat biasa, pejabat, orang tua, dll.),
+        - kategori waktu (masa lalu, masa depan, masa kini),
+        - jenis doa,
+        - jenis amalan,
+        - konsekuensi di dunia dan akhirat,
+        - penjelasan ulama atau kisah.
+      - Setiap subtopik 1–5 kata, bukan kalimat panjang.
+      - Contoh: "Masa Lalu", "Masa Depan", "Masa Kini", "Orang Miskin", "Orang Kaya", "Rakyat Jelata", "Negarawan/Pejabat", "Orang Tua", "Doa Perlindungan 1", "Doa Al-Qur'an Penyejuk Hati", "Istighfar Rutin", "Iman kepada Takdir", dll.
+   d. Jika ada dalil penting, buat node khusus:
+      - Label ringkas, misalnya:
+        - "Doa 1 (Perlindungan 8 Perkara)"
+        - "Doa 2 (Al-Qur’an Penyejuk Hati)"
+        - "Ayat: Kehidupan Bahagia (QS An-Nahl: 97)"
+        - "Ucapan Ahli Surga (Alhamdulillahilladzi adzhaba ‘annal hazan)"
+      - Node dalil ditempatkan di bawah cabang yang relevan (misal: “Solusi & Obat” → “Doa-doa dari Nabi” → dalil).
+   e. TIDAK ada batasan jumlah node maupun jumlah tingkatan (level) node:
+      - Buat sebanyak yang diperlukan selama struktur tetap jelas, hierarkis, dan mudah dipahami.
+      - Usahakan mind map memiliki **minimal 25–30 node**; jika transkrip sangat kaya, boleh lebih (50+ node).
+
+2. TINGKAT KERINCIAN (DETAIL):
+   - Pecah ide besar menjadi beberapa level:
+     - Contoh: "Solusi & Obat" → "Perbaiki Hubungan dengan Allah" → "Meninggalkan Maksiat", "Perbanyak Doa", "Amal Shalih", "Istighfar Rutin", "Iman kepada Takdir", dll.
+   - Setiap kali transkrip menyebut DAFTAR berurutan (minimal 3 item), buat node terpisah untuk tiap item sebagai **saudara** (sibling):
+     - Contoh: "Orang Miskin", "Orang Kaya", "Rakyat Jelata", "Pejabat/Negarawan", "Orang Tua".
+   - Jika ada penjelasan berlapis, gunakan beberapa level:
+     - Contoh: "Doa 1" → "Perlindungan dari al-Hamm", "Perlindungan dari al-Huzn", "Perlindungan dari ‘ajz", "Perlindungan dari kasal", dll.
+   - Tambahkan node untuk:
+     - definisi istilah penting (al-hamm, al-huzn),
+     - dampak psikologis (tidak bisa tidur, sempitnya dada),
+     - perbedaan dunia–akhirat (kegelisahan hilang total di surga),
+     - kisah/perumpamaan (gunung, besi, api, air, angin, manusia).
+
+3. ATURAN PENULISAN NODE:
+   - Setiap objek dalam "nodes" minimal punya:
+     - "id": string unik (misal "n1", "n2", "n3", dst).
+     - "label": teks pendek (1–5 kata).
+     - "children": array berisi daftar "id" anak. Jika tidak punya anak, tulis [].
+   - Wajib gunakan "note" bila perlu menjelaskan makna node:
+     - "note": 1–2 kalimat penjelas isi node (misal penjelasan singkat doa, atau ringkasan ayat).
+   - Jangan mengisi "children" dengan objek, hanya dengan ID string.
+
+4. KONEKSI ANTAR NODE:
+   - Buat satu node akar:
+     - { "id": "n1", "label": "<Topik Utama>", "children": ["n2","n3","n4", ...] }
+   - Cabang utama (level 1) menjadikan "n1" sebagai parent.
+   - Subtopik (level 2 dan seterusnya) menjadikan cabang di atasnya sebagai parent.
+   - Pastikan tidak ada siklus; struktur harus murni pohon (tree).
+
+5. FOKUS & KEJELASAN:
+   - Hindari memasukkan ide yang terlalu kecil/remeh, tetapi jangan menggabungkan terlalu banyak ide berbeda dalam satu node.
+   - Upayakan struktur yang mudah dibaca dari kiri ke kanan:
+     - Akar → cabang besar → penjabaran → dalil/doa/praktik → rincian isi doa/ayat.
+   - Tema-tema yang sering muncul seperti:
+     - kondisi hati dan kegelisahan,
+     - contoh kehidupan (miskin/kaya, rakyat/penguasa, orang tua tanpa anak),
+     - hubungan dengan Allah dan maksiat,
+     - doa-doa tertentu yang diajarkan Nabi,
+     - iman pada takdir dan rasa ridha,
+     - janji Allah bagi orang yang beramal shalih,
+     harus tercermin sebagai node-node penting dengan subcabang yang cukup rinci.
+
+Terakhir:
+- Baca dan pahami seluruh transkrip terlebih dahulu.
+- Susun mind map yang sangat rinci dan bercabang banyak langsung dari isi transkrip sesuai aturan di atas.
+- Keluarkan hanya JSON, tanpa teks lain.
+
+Berikut transkrip kajian yang harus Anda ringkas dan petakan:
+
+"[ISI TRANSKRIP]"
+`.trim();
 
   const userContent = [
     `Judul/ konteks: ${videoTitle || "kajian YouTube"}.`,
@@ -78,7 +225,7 @@ export async function generateInsightsFromTranscript(transcript, { prompt, video
     .join("\n\n");
 
   const completion = await client.chat.completions.create({
-    model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+    model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
     temperature: 0.4,
     response_format: { type: "json_object" },
     messages: [

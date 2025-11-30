@@ -3,12 +3,14 @@
 import { useAtom } from "jotai";
 import { Loader2, PlayCircle, Wand2, Rocket } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
 import { processYoutubeTranscriptionAction } from "@/actions/transcription";
+import { MindmapCanvas } from "@/components/mindmap-canvas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { buildMindmapChart, sanitizeText } from "@/lib/mindmap";
 import { cn } from "@/lib/utils";
 import { errorAtom, loadingAtom, promptAtom, resultAtom, youtubeAtom } from "@/state/transcribe-atoms";
 
@@ -21,9 +23,13 @@ export default function TranscribePage() {
   const [loading, setLoading] = useAtom(loadingAtom);
   const [result, setResult] = useAtom(resultAtom);
   const [error, setError] = useAtom(errorAtom);
+  const [mindmapChart, setMindmapChart] = useState("");
+  const [mindmapError, setMindmapError] = useState("");
+  const [mindmapLoading, setMindmapLoading] = useState(false);
   const bulletPoints = result?.summary?.bullet_points ?? [];
   const questions = result?.qa?.sample_questions ?? [];
   const mindmapNodes = result?.mindmap?.nodes ?? [];
+  const mindmapOutline = result?.mindmap?.outline_markdown ?? "";
   const transcriptPreview = result?.transcript?.slice(0, 1200) ?? "";
   const srtPreview = result?.srt?.slice(0, 400) ?? "";
 
@@ -55,6 +61,8 @@ export default function TranscribePage() {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setMindmapChart("");
+    setMindmapError("");
     setResult(null);
     try {
       const data = await processYoutubeTranscriptionAction({ youtubeUrl, prompt });
@@ -63,6 +71,39 @@ export default function TranscribePage() {
       setError(err instanceof Error ? err.message : "Gagal memproses transcript");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBuildMindmap = () => {
+    setMindmapLoading(true);
+    setMindmapError("");
+    setMindmapChart("");
+
+    try {
+      let nodesForMap = [];
+      if (mindmapNodes.length > 0) {
+        nodesForMap = mindmapNodes;
+      } else if (bulletPoints.length > 0) {
+        const rootLabel = result?.summary?.short ?? "Topik Utama";
+        const bulletChildren = bulletPoints.map((_, idx) => `bp_${idx + 1}`);
+        const bulletNodes = bulletPoints.map((point, idx) => ({
+          id: `bp_${idx + 1}`,
+          label: point,
+          children: [],
+        }));
+        nodesForMap = [{ id: "root", label: rootLabel, children: bulletChildren }, ...bulletNodes];
+      }
+
+      const chart = buildMindmapChart(nodesForMap, result?.mindmap?.title ?? "Peta Pikiran Kajian");
+      if (!chart) {
+        setMindmapError("Mind map belum bisa dibuat. Pastikan ringkasan sudah tersedia.");
+        return;
+      }
+      setMindmapChart(chart);
+    } catch (err) {
+      setMindmapError(err instanceof Error ? err.message : "Gagal membuat mind map");
+    } finally {
+      setMindmapLoading(false);
     }
   };
 
@@ -197,27 +238,83 @@ export default function TranscribePage() {
                         Daftar node untuk digambar di frontend.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-2">
+                    <CardContent className="space-y-3">
                       {mindmapNodes.length ? (
-                        <ul className="space-y-1 text-sm text-white/80">
-                          {mindmapNodes.slice(0, 6).map((node) => (
-                            <li key={node.id} className="flex items-center gap-2">
-                              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-mono text-white/80">
-                                {node.id}
-                              </span>
-                              <span>{node.label ?? node.title ?? "Node"}</span>
-                            </li>
-                          ))}
-                          {mindmapNodes.length > 6 ? (
-                            <li className="text-xs text-white/60">+{mindmapNodes.length - 6} node lain</li>
+                        <>
+                          <ul className="space-y-1 text-sm text-white/80">
+                            {mindmapNodes.slice(0, 6).map((node, idx) => (
+                              <li
+                                key={node.id ?? node.label ?? node.title ?? idx}
+                                className="flex items-center gap-2"
+                              >
+                                <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-mono text-white/80">
+                                  {node.id ?? `node-${idx + 1}`}
+                                </span>
+                                <span>{node.label ?? node.title ?? "Node"}</span>
+                              </li>
+                            ))}
+                            {mindmapNodes.length > 6 ? (
+                              <li className="text-xs text-white/60">+{mindmapNodes.length - 6} node lain</li>
+                            ) : null}
+                          </ul>
+                          <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/80">
+                            <p className="font-semibold text-white">Detail node (dari prompt)</p>
+                            <div className="max-h-52 overflow-auto space-y-2 pr-1">
+                              {mindmapNodes.map((node, idx) => (
+                                <div
+                                  key={node.id ?? node.label ?? `node-${idx}`}
+                                  className="rounded-lg bg-white/5 p-2"
+                                >
+                                  <p className="font-mono text-[11px] text-white/80">
+                                    ID: {node.id ?? `node-${idx + 1}`} · Label: {node.label ?? node.title ?? "Node"}
+                                  </p>
+                                  {node.note ? (
+                                    <p className="text-[11px] text-white/70">Catatan: {node.note}</p>
+                                  ) : null}
+                                  <p className="text-[11px] text-white/60">
+                                    Children: {Array.isArray(node.children) && node.children.length
+                                      ? node.children.join(", ")
+                                      : "Tidak ada"}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          {mindmapOutline ? (
+                            <div className="space-y-1 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/80">
+                              <p className="font-semibold text-white">Outline mindmap (Markdown)</p>
+                              <pre className="max-h-52 overflow-auto whitespace-pre-wrap text-white/70">
+                                {mindmapOutline}
+                              </pre>
+                            </div>
                           ) : null}
-                        </ul>
+                        </>
                       ) : (
                         <p className="text-sm text-white/60">Belum ada node mindmap.</p>
                       )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={handleBuildMindmap}
+                        disabled={!result || mindmapLoading || (!mindmapNodes.length && !bulletPoints.length)}
+                        className="w-full justify-center bg-white/15 text-white hover:bg-white/20"
+                      >
+                        {mindmapLoading ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Wand2 className="mr-2 h-4 w-4" />
+                        )}
+                        Buat Mind Map (Mermaid)
+                      </Button>
+                      {mindmapError ? <p className="text-xs text-amber-200">{mindmapError}</p> : null}
                     </CardContent>
                   </Card>
                 </div>
+
+                {mindmapChart ? (
+                  <MindmapCanvas chart={mindmapChart} title={result?.mindmap?.title ?? "Peta Pikiran Kajian"} />
+                ) : null}
 
                 {result.summary?.detailed ? (
                   <Card className="border-white/10 bg-white/10 text-white">
