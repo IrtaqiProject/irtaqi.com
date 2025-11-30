@@ -19,7 +19,10 @@ export async function fetchYoutubeMetaAction(params) {
     throw new Error("Parameter tidak valid");
   }
 
-  const videoId = parsed.data.id ?? (parsed.data.url ? extractVideoId(parsed.data.url) : null);
+  let videoId = parsed.data.id ?? null;
+  if (!videoId && parsed.data.url) {
+    videoId = extractVideoId(parsed.data.url);
+  }
   if (!videoId) {
     throw new Error("Berikan id atau url YouTube");
   }

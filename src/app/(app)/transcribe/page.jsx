@@ -10,82 +10,9 @@ import { processYoutubeTranscriptionAction } from "@/actions/transcription";
 import { MindmapCanvas } from "@/components/mindmap-canvas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { buildMindmapChart, sanitizeText } from "@/lib/mindmap";
 import { cn } from "@/lib/utils";
 import { errorAtom, loadingAtom, promptAtom, resultAtom, youtubeAtom } from "@/state/transcribe-atoms";
-
-function sanitizeLabel(label, fallback = "Node") {
-  const clean = (label ?? "").toString().replace(/\s+/g, " ").replace(/["<>]/g, "").trim();
-  return clean || fallback;
-}
-
-function sanitizeNote(note) {
-  const clean = (note ?? "").toString().replace(/\s+/g, " ").replace(/["<>]/g, "").trim();
-  return clean || "";
-}
-
-function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
-  if (!Array.isArray(nodes) || nodes.length === 0) return null;
-
-  const map = new Map();
-  nodes.forEach((node, idx) => {
-    const key = node?.id ?? `node_${idx}`;
-    map.set(key, {
-      label: sanitizeLabel(node?.label ?? node?.title, `Node ${idx + 1}`),
-      children: Array.isArray(node?.children) ? node.children.filter(Boolean) : [],
-      note: sanitizeNote(node?.note),
-    });
-  });
-
-  for (const node of map.values()) {
-    for (const child of node.children) {
-      if (!map.has(child)) {
-        map.set(child, {
-          label: sanitizeLabel(child, "Subtopik"),
-          children: [],
-          note: "",
-        });
-      }
-    }
-  }
-
-  const keys = Array.from(map.keys());
-  const referenced = new Set();
-  map.forEach((node) => node.children.forEach((child) => referenced.add(child)));
-  const rootKey = map.has("n1")
-    ? "n1"
-    : map.has("root")
-      ? "root"
-      : keys.find((key) => !referenced.has(key)) ?? keys[0];
-  if (!rootKey) return null;
-
-  const rootNode = map.get(rootKey);
-  if (rootNode) {
-    rootNode.label = sanitizeLabel(title, rootNode.label || "Peta Pikiran");
-  }
-
-  const lines = ["mindmap"];
-  const visited = new Set();
-
-  const walk = (key, depth) => {
-    if (visited.has(key)) return;
-    visited.add(key);
-    const node = map.get(key);
-    if (!node) return;
-    const note = node.note ? ` — ${node.note}` : "";
-    const line = `${"  ".repeat(depth)}${node.label}${note}`;
-    lines.push(line);
-    node.children.forEach((childKey) => walk(childKey, depth + 1));
-  };
-
-  walk(rootKey, 1);
-
-  map.forEach((node, key) => {
-    if (visited.has(key)) return;
-    lines.push(`  ${node.label}`);
-  });
-
-  return lines.join("\n");
-}
 
 export default function TranscribePage() {
   const { status } = useSession();
@@ -153,23 +80,19 @@ export default function TranscribePage() {
     setMindmapChart("");
 
     try {
-      const nodesForMap =
-        mindmapNodes.length > 0
-          ? mindmapNodes
-          : bulletPoints.length
-            ? [
-                {
-                  id: "root",
-                  label: result?.summary?.short ?? "Topik Utama",
-                  children: bulletPoints.map((_, idx) => `bp_${idx + 1}`),
-                },
-                ...bulletPoints.map((point, idx) => ({
-                  id: `bp_${idx + 1}`,
-                  label: point,
-                  children: [],
-                })),
-              ]
-            : [];
+      let nodesForMap = [];
+      if (mindmapNodes.length > 0) {
+        nodesForMap = mindmapNodes;
+      } else if (bulletPoints.length > 0) {
+        const rootLabel = result?.summary?.short ?? "Topik Utama";
+        const bulletChildren = bulletPoints.map((_, idx) => `bp_${idx + 1}`);
+        const bulletNodes = bulletPoints.map((point, idx) => ({
+          id: `bp_${idx + 1}`,
+          label: point,
+          children: [],
+        }));
+        nodesForMap = [{ id: "root", label: rootLabel, children: bulletChildren }, ...bulletNodes];
+      }
 
       const chart = buildMindmapChart(nodesForMap, result?.mindmap?.title ?? "Peta Pikiran Kajian");
       if (!chart) {
