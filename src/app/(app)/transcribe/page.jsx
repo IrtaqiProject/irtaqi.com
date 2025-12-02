@@ -221,6 +221,176 @@ export default function TranscribePage() {
                   </p>
                 </div>
 
+                {result?.quiz ? (
+                  <Card className="border-white/10 bg-gradient-to-r from-[#16213e]/70 via-[#1b1b3a]/75 to-[#112041]/70 text-white shadow-lg">
+                    <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10">
+                          <ListChecks className="h-6 w-6 text-emerald-300" />
+                        </div>
+                        <div>
+                          <CardTitle>Quiz siap dikerjakan</CardTitle>
+                          <CardDescription className="text-white/75">
+                            {result.quiz?.questions?.length ??
+                              result.quiz?.meta?.total_questions ??
+                              result.quizCount ??
+                              0}{" "}
+                            soal dari transkrip ini. Waktu video ±{" "}
+                            {result.durationSeconds ? Math.round(result.durationSeconds / 60) : "?"} menit.
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <Button
+                        asChild
+                        className="bg-gradient-to-r from-[#8b5cf6] via-[#9b5cff] to-[#4f46e5] text-white shadow-brand"
+                      >
+                        <Link href="/quiz">Mulai kuis</Link>
+                      </Button>
+                    </CardHeader>
+                  </Card>
+                ) : null}
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Card className="border-white/10 bg-white/10 text-white">
+                    <CardHeader>
+                      <CardTitle>Ringkas</CardTitle>
+                      <CardDescription className="text-white/75">
+                        {result.summary?.short ?? "Ringkasan singkat tidak tersedia."}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {bulletPoints.length ? (
+                        <ul className="list-inside list-disc space-y-1 text-sm text-white/70">
+                          {bulletPoints.map((point) => (
+                            <li key={point.slice(0, 40)}>{point}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-sm text-white/60">Belum ada bullet points.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-white/10 bg-white/10 text-white">
+                    <CardHeader>
+                      <CardTitle>Q&amp;A</CardTitle>
+                      <CardDescription className="text-white/75">
+                        Contoh pertanyaan untuk belajar cepat.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {questions.length ? (
+                        <ul className="space-y-2 text-sm text-white/80">
+                          {questions.map((item, idx) => (
+                            <li key={`${item.question}-${idx}`}>
+                              <p className="font-semibold">Q: {item.question}</p>
+                              <p className="text-white/70">A: {item.answer}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-sm text-white/60">Belum ada contoh Q&amp;A.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-white/10 bg-white/10 text-white">
+                    <CardHeader>
+                      <CardTitle>Mindmap</CardTitle>
+                      <CardDescription className="text-white/75">
+                        Daftar node untuk digambar di frontend.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {mindmapNodes.length ? (
+                        <>
+                          <ul className="space-y-1 text-sm text-white/80">
+                            {mindmapNodes.slice(0, 6).map((node, idx) => (
+                              <li
+                                key={node.id ?? node.label ?? node.title ?? idx}
+                                className="flex items-center gap-2"
+                              >
+                                <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-mono text-white/80">
+                                  {node.id ?? `node-${idx + 1}`}
+                                </span>
+                                <span>{node.label ?? node.title ?? "Node"}</span>
+                              </li>
+                            ))}
+                            {mindmapNodes.length > 6 ? (
+                              <li className="text-xs text-white/60">+{mindmapNodes.length - 6} node lain</li>
+                            ) : null}
+                          </ul>
+                          <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/80">
+                            <p className="font-semibold text-white">Detail node (dari prompt)</p>
+                            <div className="max-h-52 overflow-auto space-y-2 pr-1">
+                              {mindmapNodes.map((node, idx) => (
+                                <div
+                                  key={node.id ?? node.label ?? `node-${idx}`}
+                                  className="rounded-lg bg-white/5 p-2"
+                                >
+                                  <p className="font-mono text-[11px] text-white/80">
+                                    ID: {node.id ?? `node-${idx + 1}`} · Label: {node.label ?? node.title ?? "Node"}
+                                  </p>
+                                  {node.note ? (
+                                    <p className="text-[11px] text-white/70">Catatan: {node.note}</p>
+                                  ) : null}
+                                  <p className="text-[11px] text-white/60">
+                                    Children: {Array.isArray(node.children) && node.children.length
+                                      ? node.children.join(", ")
+                                      : "Tidak ada"}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          {mindmapOutline ? (
+                            <div className="space-y-1 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/80">
+                              <p className="font-semibold text-white">Outline mindmap (Markdown)</p>
+                              <pre className="max-h-52 overflow-auto whitespace-pre-wrap text-white/70">
+                                {mindmapOutline}
+                              </pre>
+                            </div>
+                          ) : null}
+                        </>
+                      ) : (
+                        <p className="text-sm text-white/60">Belum ada node mindmap.</p>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={handleBuildMindmap}
+                        disabled={!result || mindmapLoading || (!mindmapNodes.length && !bulletPoints.length)}
+                        className="w-full justify-center bg-white/15 text-white hover:bg-white/20"
+                      >
+                        {mindmapLoading ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Wand2 className="mr-2 h-4 w-4" />
+                        )}
+                        Buat Mind Map (Mermaid)
+                      </Button>
+                      {mindmapError ? <p className="text-xs text-amber-200">{mindmapError}</p> : null}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {mindmapChart ? (
+                  <MindmapCanvas chart={mindmapChart} title={result?.mindmap?.title ?? "Peta Pikiran Kajian"} />
+                ) : null}
+
+                {result.summary?.detailed ? (
+                  <Card className="border-white/10 bg-white/10 text-white">
+                    <CardHeader>
+                      <CardTitle>Ringkasan detail</CardTitle>
+                      <CardDescription className="text-white/75">Versi panjang untuk catatan.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm leading-relaxed text-white/80">{result.summary.detailed}</p>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
                 <Card className="border-white/10 bg-white/5 text-white">
                   <CardHeader>
                     <CardTitle>Transcript &amp; SRT</CardTitle>

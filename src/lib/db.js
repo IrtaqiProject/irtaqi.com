@@ -60,6 +60,8 @@ export async function saveTranscriptResult({
   summary,
   qa,
   mindmap,
+  quiz,
+  durationSeconds,
   model,
 }) {
   if (dbDisabled) {
@@ -72,6 +74,8 @@ export async function saveTranscriptResult({
       summary,
       qa,
       mindmap,
+      quiz,
+      duration_seconds: durationSeconds ?? null,
       model,
     });
   }
@@ -87,6 +91,8 @@ export async function saveTranscriptResult({
       summary,
       qa,
       mindmap,
+      quiz,
+      duration_seconds: durationSeconds ?? null,
       model,
     });
   }
@@ -106,8 +112,10 @@ export async function saveTranscriptResult({
         summary,
         qa,
         mindmap,
+        quiz,
+        duration_seconds,
         model
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12)
       RETURNING *
     `,
       [
@@ -120,6 +128,8 @@ export async function saveTranscriptResult({
         toJsonb(summary),
         toJsonb(qa),
         toJsonb(mindmap),
+        toJsonb(quiz),
+        durationSeconds ?? null,
         model ?? null,
       ],
     );
@@ -144,6 +154,8 @@ export async function saveTranscriptResult({
       summary,
       qa,
       mindmap,
+      quiz,
+      duration_seconds: durationSeconds ?? null,
       model,
     });
   }

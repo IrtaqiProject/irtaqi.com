@@ -18,8 +18,25 @@ export async function transcribeAudioStub(source, prompt) {
   };
 }
 
-function buildStubInsights(transcript, prompt) {
+function buildStubInsights(transcript, prompt, { quizCount = 10, durationSeconds = null } = {}) {
   const excerpt = transcript.slice(0, 180);
+  const quizQuestions = Array.from({ length: quizCount }).map((_, idx) => {
+    const qNumber = idx + 1;
+    const options = [
+      `Pilihan A untuk soal ${qNumber}`,
+      `Pilihan B untuk soal ${qNumber}`,
+      `Pilihan C untuk soal ${qNumber}`,
+      `Pilihan D untuk soal ${qNumber}`,
+    ];
+    return {
+      question: `Contoh soal ${qNumber} dari transkrip.`,
+      options,
+      correct_option_index: qNumber % 4,
+      answer: options[qNumber % 4],
+      explanation: "Penjelasan singkat jawaban benar dari materi.",
+    };
+  });
+
   return {
     summary: {
       short: `Ringkasan cepat: ${excerpt}${transcript.length > excerpt.length ? "..." : ""}`,
@@ -45,22 +62,35 @@ function buildStubInsights(transcript, prompt) {
         { id: "n4", label: "Subtopik 3", children: [] },
       ],
     },
+    quiz: {
+      meta: {
+        total_questions: quizCount,
+        duration_seconds: durationSeconds,
+      },
+      questions: quizQuestions,
+    },
     model: "stub-no-openai-key",
   };
 }
 
-export async function generateInsightsFromTranscript(transcript, { prompt, videoTitle } = {}) {
+export async function generateInsightsFromTranscript(
+  transcript,
+  { prompt, videoTitle, quizCount: quizCountInput, durationSeconds } = {},
+) {
   if (!transcript?.trim()) {
     throw new Error("Transcript kosong atau tidak ditemukan.");
   }
 
+  const quizCount = quizCountInput ?? 10;
+  const durationMinutes = durationSeconds ? Math.round(durationSeconds / 60) : null;
+
   if (!process.env.OPENAI_API_KEY) {
-    return buildStubInsights(transcript, prompt);
+    return buildStubInsights(transcript, prompt, { quizCount, durationSeconds });
   }
 
   const client = getOpenAIClient();
   const systemPrompt = `
-Anda adalah asisten yang meringkas kajian/ceramah berbahasa Indonesia dan mengubahnya menjadi ringkasan terstruktur serta mind map.
+Anda adalah asisten yang meringkas kajian/ceramah berbahasa Indonesia dan mengubahnya menjadi ringkasan terstruktur, quiz, serta mind map.
 
 INPUT:
 Satu teks transkrip kajian/ceramah dalam Bahasa Indonesia (tanpa markup lain).
@@ -87,6 +117,21 @@ Jawab HANYA dengan satu objek JSON valid (tanpa komentar, tanpa teks di luar JSO
         "label": string,
         "children": string[],
         "note": string (opsional)
+      }
+    ]
+  },
+  "quiz": {
+    "meta": {
+      "total_questions": number,
+      "duration_seconds": number | null
+    },
+    "questions": [
+      {
+        "question": string,
+        "options": [string, string, string, string],
+        "correct_option_index": number,
+        "answer": string,
+        "explanation": string
       }
     ]
   }
@@ -205,6 +250,16 @@ Tujuan: menghasilkan struktur mind map HIERARKIS yang SANGAT RINCI, dengan banya
      - janji Allah bagi orang yang beramal shalih,
      harus tercermin sebagai node-node penting dengan subcabang yang cukup rinci.
 
+RINCIAN BAGIAN "quiz":
+- Buat total ${quizCount} soal pilihan ganda berbasis transkrip, bukan asumsi umum.
+- "options" berisi tepat 4 opsi unik, jelas, dan bernuansa berbeda; hindari opsi yang hampir sama.
+- Acak posisi jawaban benar; gunakan "correct_option_index" (0–3).
+- "answer" harus sama persis dengan options[correct_option_index].
+- "explanation" 1–3 kalimat yang merujuk dalil/contoh pada transkrip.
+- Isi "meta.total_questions" dengan ${quizCount}; isi "meta.duration_seconds" dengan ${
+      durationSeconds ?? "null"
+    } (atau null jika tidak diketahui).
+
 Terakhir:
 - Baca dan pahami seluruh transkrip terlebih dahulu.
 - Susun mind map yang sangat rinci dan bercabang banyak langsung dari isi transkrip sesuai aturan di atas.
@@ -217,6 +272,9 @@ Berikut transkrip kajian yang harus Anda ringkas dan petakan:
 
   const userContent = [
     `Judul/ konteks: ${videoTitle || "kajian YouTube"}.`,
+    `Target soal kuis: ${quizCount} (durasi video ${
+      durationMinutes !== null ? `${durationMinutes} menit` : "tidak diketahui"
+    }).`,
     prompt ? `Permintaan tambahan: ${prompt}` : null,
     "Gunakan transcript berikut sebagai sumber:",
     transcript,
@@ -250,6 +308,7 @@ Berikut transkrip kajian yang harus Anda ringkas dan petakan:
     summary: parsed.summary ?? {},
     qa: parsed.qa ?? {},
     mindmap: parsed.mindmap ?? {},
+    quiz: parsed.quiz ?? {},
     model: completion.model ?? "openai",
   };
 }
