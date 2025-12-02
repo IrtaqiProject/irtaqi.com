@@ -253,3 +253,188 @@ Berikut transkrip kajian yang harus Anda ringkas dan petakan:
     model: completion.model ?? "openai",
   };
 }
+
+function buildUserContent({ videoTitle, prompt, transcript }) {
+  return [
+    `Judul/ konteks: ${videoTitle || "kajian YouTube"}.`,
+    prompt ? `Permintaan tambahan: ${prompt}` : null,
+    "Gunakan transcript berikut sebagai sumber:",
+    transcript,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export async function generateSummaryFromTranscript(transcript, { prompt, videoTitle } = {}) {
+  if (!transcript?.trim()) {
+    throw new Error("Transcript kosong atau tidak ditemukan.");
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    const stub = buildStubInsights(transcript, prompt);
+    return { summary: stub.summary, model: stub.model };
+  }
+
+  const client = getOpenAIClient();
+  const systemPrompt = `
+Anda adalah asisten yang merangkum transkrip kajian/ceramah dalam Bahasa Indonesia.
+Keluarkan hanya JSON valid dengan struktur:
+{
+  "summary": {
+    "short": "2-3 kalimat ringkasan inti",
+    "bullet_points": ["5-12 butir, 1-2 kalimat per butir"],
+    "detailed": "4-8 paragraf ringkasan naratif"
+  }
+}
+
+Ketentuan:
+- Bahasa Indonesia lugas dan singkat.
+- Sertakan dalil/rujukan jika disebutkan.
+- Tidak ada teks di luar JSON.`;
+
+  const completion = await client.chat.completions.create({
+    model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
+    temperature: 0.4,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: systemPrompt.trim() },
+      { role: "user", content: buildUserContent({ videoTitle, prompt, transcript }) },
+    ],
+  });
+
+  const content = completion.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("LLM tidak mengembalikan konten ringkasan.");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch (err) {
+    throw new Error("LLM gagal menghasilkan JSON ringkasan.");
+  }
+
+  return {
+    summary: parsed.summary ?? {},
+    model: completion.model ?? "openai",
+  };
+}
+
+export async function generateQaFromTranscript(transcript, { prompt, videoTitle } = {}) {
+  if (!transcript?.trim()) {
+    throw new Error("Transcript kosong atau tidak ditemukan.");
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    const stub = buildStubInsights(transcript, prompt);
+    return { qa: stub.qa, model: stub.model };
+  }
+
+  const client = getOpenAIClient();
+  const systemPrompt = `
+Anda menyusun 5-10 pasangan tanya-jawab dari transkrip kajian/ceramah Indonesia.
+Keluarkan hanya JSON valid:
+{
+  "qa": {
+    "sample_questions": [
+      { "question": "pertanyaan singkat", "answer": "jawaban 2-6 kalimat" }
+    ]
+  }
+}
+
+Ketentuan:
+- Pertanyaan fokus ke istilah penting, dalil, dan amalan praktis.
+- Jawaban harus merujuk isi transkrip, bukan opini Anda.
+- Tidak ada teks lain di luar JSON.`;
+
+  const completion = await client.chat.completions.create({
+    model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
+    temperature: 0.5,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: systemPrompt.trim() },
+      { role: "user", content: buildUserContent({ videoTitle, prompt, transcript }) },
+    ],
+  });
+
+  const content = completion.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("LLM tidak mengembalikan konten Q&A.");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch (err) {
+    throw new Error("LLM gagal menghasilkan JSON Q&A.");
+  }
+
+  return {
+    qa: parsed.qa ?? {},
+    model: completion.model ?? "openai",
+  };
+}
+
+export async function generateMindmapFromTranscript(transcript, { prompt, videoTitle } = {}) {
+  if (!transcript?.trim()) {
+    throw new Error("Transcript kosong atau tidak ditemukan.");
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    const stub = buildStubInsights(transcript, prompt);
+    const outline = stub.summary?.bullet_points?.map((p, i) => `${i + 1}. ${p}`).join("\n");
+    return {
+      mindmap: { ...stub.mindmap, outline_markdown: outline },
+      model: stub.model,
+    };
+  }
+
+  const client = getOpenAIClient();
+  const systemPrompt = `
+Anda menyusun mind map HIERARKIS dari transkrip kajian/ceramah Indonesia.
+Keluarkan hanya JSON valid dengan struktur:
+{
+  "mindmap": {
+    "title": "judul pendek",
+    "outline_markdown": "opsional, markdown bercabang",
+    "nodes": [
+      { "id": "n1", "label": "Topik Utama", "children": ["n2","n3"], "note": "opsional 1-2 kalimat" }
+    ]
+  }
+}
+
+Aturan:
+- Node akar wajib bernama n1 dan menjadi parent semua cabang.
+- Buat 4-8 cabang utama (level 1) lalu pecah menjadi subtopik (level 2/3/4) sesuai isi transkrip.
+- Minimal 20-30 node bila transkrip kaya, boleh lebih.
+- label 1-5 kata; gunakan "note" untuk penjelasan singkat atau dalil.
+- Hindari siklus; struktur harus tree.
+- Tidak ada teks di luar JSON.`;
+
+  const completion = await client.chat.completions.create({
+    model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
+    temperature: 0.4,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: systemPrompt.trim() },
+      { role: "user", content: buildUserContent({ videoTitle, prompt, transcript }) },
+    ],
+  });
+
+  const content = completion.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("LLM tidak mengembalikan konten mindmap.");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch (err) {
+    throw new Error("LLM gagal menghasilkan JSON mindmap.");
+  }
+
+  return {
+    mindmap: parsed.mindmap ?? {},
+    model: completion.model ?? "openai",
+  };
+}

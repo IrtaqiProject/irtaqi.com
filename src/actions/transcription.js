@@ -3,12 +3,16 @@
 import { z } from "zod";
 
 import { saveTranscriptResult } from "@/lib/db";
-import { generateInsightsFromTranscript, transcribeAudioStub } from "@/lib/openai";
+import {
+  generateMindmapFromTranscript,
+  generateQaFromTranscript,
+  generateSummaryFromTranscript,
+  transcribeAudioStub,
+} from "@/lib/openai";
 import { extractVideoId, fetchYoutubeTranscript } from "@/lib/youtube";
 
 const processSchema = z.object({
   youtubeUrl: z.string().url(),
-  prompt: z.string().optional(),
 });
 
 export async function processYoutubeTranscriptionAction(input) {
@@ -23,33 +27,26 @@ export async function processYoutubeTranscriptionAction(input) {
   }
 
   const transcript = await fetchYoutubeTranscript(videoId);
-  const insights = await generateInsightsFromTranscript(transcript.text, {
-    prompt: parsed.data.prompt,
-    videoTitle: `https://www.youtube.com/watch?v=${videoId}`,
-  });
 
   const saved = await saveTranscriptResult({
     videoId,
     youtubeUrl: parsed.data.youtubeUrl,
-    prompt: parsed.data.prompt ?? "",
+    prompt: "",
     transcriptText: transcript.text,
     srt: transcript.srt,
-    summary: insights.summary,
-    qa: insights.qa,
-    mindmap: insights.mindmap,
-    model: insights.model,
+    summary: null,
+    qa: null,
+    mindmap: null,
+    model: "transcript-only",
   });
 
   return {
     id: saved?.id ?? null,
     videoId,
     youtubeUrl: parsed.data.youtubeUrl,
-    summary: insights.summary,
-    qa: insights.qa,
-    mindmap: insights.mindmap,
     transcript: transcript.text,
     srt: transcript.srt,
-    model: insights.model,
+    model: "transcript-only",
     createdAt: saved?.created_at ?? null,
     lang: transcript.lang,
   };
@@ -68,4 +65,40 @@ export async function transcribeDirectAction(input) {
 
   const { audioUrl, prompt } = parsed.data;
   return transcribeAudioStub(audioUrl, prompt);
+}
+
+const featureSchema = z.object({
+  transcript: z.string().min(10, "Transcript kosong atau terlalu pendek."),
+  prompt: z.string().optional(),
+  videoTitle: z.string().optional(),
+});
+
+export async function summarizeTranscriptAction(input) {
+  const parsed = featureSchema.safeParse(input ?? {});
+  if (!parsed.success) {
+    throw new Error("Input tidak valid");
+  }
+
+  const { transcript, prompt, videoTitle } = parsed.data;
+  return generateSummaryFromTranscript(transcript, { prompt, videoTitle });
+}
+
+export async function generateQaAction(input) {
+  const parsed = featureSchema.safeParse(input ?? {});
+  if (!parsed.success) {
+    throw new Error("Input tidak valid");
+  }
+
+  const { transcript, prompt, videoTitle } = parsed.data;
+  return generateQaFromTranscript(transcript, { prompt, videoTitle });
+}
+
+export async function generateMindmapAction(input) {
+  const parsed = featureSchema.safeParse(input ?? {});
+  if (!parsed.success) {
+    throw new Error("Input tidak valid");
+  }
+
+  const { transcript, prompt, videoTitle } = parsed.data;
+  return generateMindmapFromTranscript(transcript, { prompt, videoTitle });
 }

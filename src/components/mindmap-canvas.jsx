@@ -33,7 +33,21 @@ export function MindmapCanvas({ chart, title = "Peta Pikiran" }) {
     const render = async () => {
       try {
         const { svg } = await mermaid.render(`${id}-mindmap`, chart);
-        if (active) setSvg(svg);
+        if (!active) return;
+
+        const svgLower = svg?.toLowerCase?.() ?? "";
+        const hasSyntaxError =
+          svgLower.includes("syntax error") ||
+          svgLower.includes("parse error") ||
+          svgLower.includes("mermaid version");
+
+        if (hasSyntaxError) {
+          setError("Mind map tidak valid untuk dirender. Periksa struktur node.");
+          setSvg("");
+          return;
+        }
+
+        setSvg(svg);
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Gagal merender mindmap");

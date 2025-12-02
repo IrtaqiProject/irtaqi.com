@@ -1,37 +1,78 @@
 "use client";
 
+import Link from "next/link";
 import { useAtom } from "jotai";
-import { Loader2, PlayCircle, Wand2, Rocket } from "lucide-react";
+import {
+  GitBranch,
+  Loader2,
+  MessageSquare,
+  PlayCircle,
+  Rocket,
+  Sparkles,
+} from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 
 import { processYoutubeTranscriptionAction } from "@/actions/transcription";
-import { MindmapCanvas } from "@/components/mindmap-canvas";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { buildMindmapChart, sanitizeText } from "@/lib/mindmap";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { errorAtom, loadingAtom, promptAtom, resultAtom, youtubeAtom } from "@/state/transcribe-atoms";
+import {
+  mindmapChartAtom,
+  mindmapRenderErrorAtom,
+  mindmapResultAtom,
+  qaResultAtom,
+  summaryResultAtom,
+  transcriptAtom,
+  transcriptErrorAtom,
+  transcriptLoadingAtom,
+  youtubeAtom,
+} from "@/state/transcribe-atoms";
 
 export default function TranscribePage() {
   const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [youtubeUrl, setYoutubeUrl] = useAtom(youtubeAtom);
-  const [prompt, setPrompt] = useAtom(promptAtom);
-  const [loading, setLoading] = useAtom(loadingAtom);
-  const [result, setResult] = useAtom(resultAtom);
-  const [error, setError] = useAtom(errorAtom);
-  const [mindmapChart, setMindmapChart] = useState("");
-  const [mindmapError, setMindmapError] = useState("");
-  const [mindmapLoading, setMindmapLoading] = useState(false);
-  const bulletPoints = result?.summary?.bullet_points ?? [];
-  const questions = result?.qa?.sample_questions ?? [];
-  const mindmapNodes = result?.mindmap?.nodes ?? [];
-  const mindmapOutline = result?.mindmap?.outline_markdown ?? "";
-  const transcriptPreview = result?.transcript?.slice(0, 1200) ?? "";
-  const srtPreview = result?.srt?.slice(0, 400) ?? "";
+  const [transcript, setTranscript] = useAtom(transcriptAtom);
+  const [loading, setLoading] = useAtom(transcriptLoadingAtom);
+  const [error, setError] = useAtom(transcriptErrorAtom);
+  const [, setSummaryResult] = useAtom(summaryResultAtom);
+  const [, setQaResult] = useAtom(qaResultAtom);
+  const [, setMindmapResult] = useAtom(mindmapResultAtom);
+  const [, setMindmapChart] = useAtom(mindmapChartAtom);
+  const [, setMindmapRenderError] = useAtom(mindmapRenderErrorAtom);
+
+  const transcriptPreview =
+    transcript?.transcript?.slice(0, 1200) ?? "";
+  const srtPreview = transcript?.srt?.slice(0, 400) ?? "";
+  const featureLinks = [
+    {
+      href: "/summarize",
+      title: "Summarize",
+      desc: "Prompt terpisah, jalankan ringkasan hanya saat diperlukan.",
+      icon: Sparkles,
+    },
+    {
+      href: "/qa",
+      title: "Q&A",
+      desc: "Bangun daftar tanya jawab praktis dari transcript.",
+      icon: MessageSquare,
+    },
+    {
+      href: "/mindmap",
+      title: "Mindmap",
+      desc: "Render peta pikiran dari node yang dihasilkan LLM.",
+      icon: GitBranch,
+    },
+  ];
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -44,7 +85,9 @@ export default function TranscribePage() {
   if (status === "unauthenticated") {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#1b1145] via-[#130d32] to-[#0b0820] text-white">
-        <p className="text-sm text-white/70">Mengalihkan ke halaman login...</p>
+        <p className="text-sm text-white/70">
+          Mengalihkan ke halaman login...
+        </p>
       </main>
     );
   }
@@ -61,49 +104,26 @@ export default function TranscribePage() {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setTranscript(null);
+    setSummaryResult(null);
+    setQaResult(null);
+    setMindmapResult(null);
     setMindmapChart("");
-    setMindmapError("");
-    setResult(null);
+    setMindmapRenderError("");
+
     try {
-      const data = await processYoutubeTranscriptionAction({ youtubeUrl, prompt });
-      setResult(data);
+      const data = await processYoutubeTranscriptionAction({
+        youtubeUrl,
+      });
+      setTranscript(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal memproses transcript");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Gagal memproses transcript"
+      );
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleBuildMindmap = () => {
-    setMindmapLoading(true);
-    setMindmapError("");
-    setMindmapChart("");
-
-    try {
-      let nodesForMap = [];
-      if (mindmapNodes.length > 0) {
-        nodesForMap = mindmapNodes;
-      } else if (bulletPoints.length > 0) {
-        const rootLabel = result?.summary?.short ?? "Topik Utama";
-        const bulletChildren = bulletPoints.map((_, idx) => `bp_${idx + 1}`);
-        const bulletNodes = bulletPoints.map((point, idx) => ({
-          id: `bp_${idx + 1}`,
-          label: point,
-          children: [],
-        }));
-        nodesForMap = [{ id: "root", label: rootLabel, children: bulletChildren }, ...bulletNodes];
-      }
-
-      const chart = buildMindmapChart(nodesForMap, result?.mindmap?.title ?? "Peta Pikiran Kajian");
-      if (!chart) {
-        setMindmapError("Mind map belum bisa dibuat. Pastikan ringkasan sudah tersedia.");
-        return;
-      }
-      setMindmapChart(chart);
-    } catch (err) {
-      setMindmapError(err instanceof Error ? err.message : "Gagal membuat mind map");
-    } finally {
-      setMindmapLoading(false);
     }
   };
 
@@ -117,12 +137,17 @@ export default function TranscribePage() {
 
       <div className="container relative max-w-4xl space-y-8 py-14 text-white">
         <div className="space-y-3 text-center">
-          <p className="text-sm font-semibold text-emerald-200">Transcribe kajian</p>
-          <h1 className="text-3xl font-bold sm:text-4xl">Masukkan URL YouTube untuk diproses</h1>
+          <p className="text-sm font-semibold text-emerald-200">
+            Langkah 1 · Transcribe
+          </p>
+          <h1 className="text-3xl font-bold sm:text-4xl">
+            Ubah video kajian youtube kamu jadi teks siap pakai hanya
+            dengan satu klik!
+          </h1>
           <p className="text-white/75">
-            URL dikirim ke server action Next.js: ambil transcript/SRT, kirim ke LLM untuk ringkasan + Q&amp;A +
-            mindmap, simpan ke Postgres, lalu hasilnya langsung dikembalikan. Tidak ada antrean, Redis, atau worker
-            terpisah.
+            Klik Transcribe dan biarkan sistem mengubah pembicaraan
+            panjang menjadi teks bersih yang mudah dibaca. Praktis,
+            cepat, dan akurat.
           </p>
         </div>
 
@@ -130,8 +155,9 @@ export default function TranscribePage() {
           <CardHeader>
             <CardTitle>Form transkripsi</CardTitle>
             <CardDescription className="text-white/80">
-              URL dipangkas ke videoId, transcript diambil, diproses LLM, lalu disimpan di Postgres dalam satu alur
-              server action/API.
+              Masukkan URL, ambil transcript/SRT, simpan ke Postgres,
+              lalu gunakan hasilnya di halaman fitur lain tanpa
+              re-fetch.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -149,201 +175,73 @@ export default function TranscribePage() {
                   />
                 </div>
               </label>
-              <label className="block space-y-2 text-sm">
-                <span className="text-white/80">Prompt (opsional)</span>
-                <div className="flex items-start gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3">
-                  <Wand2 className="mt-1 h-5 w-5 text-white/60" />
-                  <textarea
-                    rows={3}
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    className="w-full bg-transparent text-white placeholder:text-white/60 focus:outline-none"
-                    placeholder="Highlight ayat, hadits, poin praktis..."
-                  />
-                </div>
-              </label>
-              {error ? <p className="text-sm text-amber-300">{error}</p> : null}
+              {error ? (
+                <p className="text-sm text-amber-300">{error}</p>
+              ) : null}
               <Button
                 type="submit"
                 disabled={loading}
                 className={cn(
-                  "w-full bg-gradient-to-r from-[#8b5cf6] via-[#9b5cff] to-[#4f46e5] text-white shadow-brand",
+                  "w-full bg-gradient-to-r from-[#8b5cf6] via-[#9b5cff] to-[#4f46e5] text-white shadow-brand"
                 )}
               >
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Rocket className="mr-2 h-4 w-4" />}
+                {loading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Rocket className="mr-2 h-4 w-4" />
+                )}
                 Proses & simpan
               </Button>
             </form>
-            {result ? (
+
+            {transcript ? (
               <div className="mt-6 space-y-4">
                 <div className="rounded-2xl border border-emerald-300/30 bg-emerald-500/15 p-4 text-sm shadow-inner">
-                  <p className="font-semibold text-emerald-200">Hasil diproses di server</p>
+                  <p className="font-semibold text-emerald-200">
+                    Transcript siap dipakai
+                  </p>
                   <p className="text-white/80">
-                    Disimpan ke Postgres dengan ID <span className="font-mono">{result.id ?? "–"}</span>. Model:{" "}
-                    {result.model ?? "stub"}.
+                    Disimpan dengan ID{" "}
+                    <span className="font-mono">
+                      {transcript.id ?? "–"}
+                    </span>
+                    . Model: {transcript.model ?? "stub"}.
                   </p>
-                  <p className="mt-2 text-xs text-white/60">
-                    Video {result.videoId} {result.lang ? `(${result.lang.toUpperCase()})` : ""} · {result.youtubeUrl}
+                  <p className="mt-1 text-xs text-white/60">
+                    Video {transcript.videoId}{" "}
+                    {transcript.lang
+                      ? `(${transcript.lang.toUpperCase()})`
+                      : ""}{" "}
+                    · {transcript.youtubeUrl}
+                  </p>
+                  <p className="mt-2 text-xs text-white/70">
+                    Gunakan hasil ini di halaman Summarize, Q&amp;A,
+                    atau Mindmap. Setiap fitur punya prompt sendiri
+                    dan hanya berjalan saat tombolnya diklik.
                   </p>
                 </div>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <Card className="border-white/10 bg-white/10 text-white">
-                    <CardHeader>
-                      <CardTitle>Ringkas</CardTitle>
-                      <CardDescription className="text-white/75">
-                        {result.summary?.short ?? "Ringkasan singkat tidak tersedia."}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      {bulletPoints.length ? (
-                        <ul className="list-inside list-disc space-y-1 text-sm text-white/70">
-                          {bulletPoints.map((point) => (
-                            <li key={point.slice(0, 40)}>{point}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-sm text-white/60">Belum ada bullet points.</p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-white/10 bg-white/10 text-white">
-                    <CardHeader>
-                      <CardTitle>Q&amp;A</CardTitle>
-                      <CardDescription className="text-white/75">
-                        Contoh pertanyaan untuk belajar cepat.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      {questions.length ? (
-                        <ul className="space-y-2 text-sm text-white/80">
-                          {questions.map((item, idx) => (
-                            <li key={`${item.question}-${idx}`}>
-                              <p className="font-semibold">Q: {item.question}</p>
-                              <p className="text-white/70">A: {item.answer}</p>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-sm text-white/60">Belum ada contoh Q&amp;A.</p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-white/10 bg-white/10 text-white">
-                    <CardHeader>
-                      <CardTitle>Mindmap</CardTitle>
-                      <CardDescription className="text-white/75">
-                        Daftar node untuk digambar di frontend.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {mindmapNodes.length ? (
-                        <>
-                          <ul className="space-y-1 text-sm text-white/80">
-                            {mindmapNodes.slice(0, 6).map((node, idx) => (
-                              <li
-                                key={node.id ?? node.label ?? node.title ?? idx}
-                                className="flex items-center gap-2"
-                              >
-                                <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-mono text-white/80">
-                                  {node.id ?? `node-${idx + 1}`}
-                                </span>
-                                <span>{node.label ?? node.title ?? "Node"}</span>
-                              </li>
-                            ))}
-                            {mindmapNodes.length > 6 ? (
-                              <li className="text-xs text-white/60">+{mindmapNodes.length - 6} node lain</li>
-                            ) : null}
-                          </ul>
-                          <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/80">
-                            <p className="font-semibold text-white">Detail node (dari prompt)</p>
-                            <div className="max-h-52 overflow-auto space-y-2 pr-1">
-                              {mindmapNodes.map((node, idx) => (
-                                <div
-                                  key={node.id ?? node.label ?? `node-${idx}`}
-                                  className="rounded-lg bg-white/5 p-2"
-                                >
-                                  <p className="font-mono text-[11px] text-white/80">
-                                    ID: {node.id ?? `node-${idx + 1}`} · Label: {node.label ?? node.title ?? "Node"}
-                                  </p>
-                                  {node.note ? (
-                                    <p className="text-[11px] text-white/70">Catatan: {node.note}</p>
-                                  ) : null}
-                                  <p className="text-[11px] text-white/60">
-                                    Children: {Array.isArray(node.children) && node.children.length
-                                      ? node.children.join(", ")
-                                      : "Tidak ada"}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          {mindmapOutline ? (
-                            <div className="space-y-1 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/80">
-                              <p className="font-semibold text-white">Outline mindmap (Markdown)</p>
-                              <pre className="max-h-52 overflow-auto whitespace-pre-wrap text-white/70">
-                                {mindmapOutline}
-                              </pre>
-                            </div>
-                          ) : null}
-                        </>
-                      ) : (
-                        <p className="text-sm text-white/60">Belum ada node mindmap.</p>
-                      )}
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={handleBuildMindmap}
-                        disabled={!result || mindmapLoading || (!mindmapNodes.length && !bulletPoints.length)}
-                        className="w-full justify-center bg-white/15 text-white hover:bg-white/20"
-                      >
-                        {mindmapLoading ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Wand2 className="mr-2 h-4 w-4" />
-                        )}
-                        Buat Mind Map (Mermaid)
-                      </Button>
-                      {mindmapError ? <p className="text-xs text-amber-200">{mindmapError}</p> : null}
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {mindmapChart ? (
-                  <MindmapCanvas chart={mindmapChart} title={result?.mindmap?.title ?? "Peta Pikiran Kajian"} />
-                ) : null}
-
-                {result.summary?.detailed ? (
-                  <Card className="border-white/10 bg-white/10 text-white">
-                    <CardHeader>
-                      <CardTitle>Ringkasan detail</CardTitle>
-                      <CardDescription className="text-white/75">Versi panjang untuk catatan.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm leading-relaxed text-white/80">{result.summary.detailed}</p>
-                    </CardContent>
-                  </Card>
-                ) : null}
 
                 <Card className="border-white/10 bg-white/5 text-white">
                   <CardHeader>
                     <CardTitle>Transcript &amp; SRT</CardTitle>
                     <CardDescription className="text-white/75">
-                      Disimpan penuh di server, berikut cuplikan untuk verifikasi.
+                      Disimpan penuh di server, berikut cuplikan untuk
+                      verifikasi.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-white/60">Transcript</p>
+                      <p className="text-xs uppercase tracking-[0.2em] text-white/60">
+                        Transcript
+                      </p>
                       <pre className="mt-2 max-h-48 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-white/80">
                         {transcriptPreview || "Belum ada transcript."}
                       </pre>
                     </div>
                     <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-white/60">SRT</p>
+                      <p className="text-xs uppercase tracking-[0.2em] text-white/60">
+                        SRT
+                      </p>
                       <pre className="mt-2 max-h-40 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-white/70">
                         {srtPreview || "Belum ada SRT."}
                       </pre>
@@ -355,19 +253,68 @@ export default function TranscribePage() {
           </CardContent>
         </Card>
 
+        <Card className="border-white/10 bg-white/5 text-white">
+          <CardHeader>
+            <CardTitle>Pilih fitur setelah transcript siap</CardTitle>
+            <CardDescription className="text-white/75">
+              Prompt masing-masing ada di halaman berikut dan hanya
+              dijalankan ketika tombolnya ditekan.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            {featureLinks.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div
+                  key={item.href}
+                  className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4"
+                >
+                  <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                    <span className="rounded-full bg-white/10 p-2">
+                      <Icon className="h-4 w-4 text-white" />
+                    </span>
+                    {item.title}
+                  </div>
+                  <p className="text-sm text-white/70">{item.desc}</p>
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="justify-center bg-white/10 text-white hover:bg-white/20"
+                  >
+                    <Link href={item.href}>
+                      Buka halaman {item.title}
+                    </Link>
+                  </Button>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
         <div className="grid gap-4 md:grid-cols-3">
           {[
-            { title: "1. Kirim URL", desc: "Server action menerima URL YouTube + prompt opsional." },
-            { title: "2. Transcript + LLM", desc: "Ambil transcript/SRT, ringkas + Q&A + mindmap via LLM." },
             {
-              title: "3. Simpan & kirim",
-              desc: "Hasil disimpan ke Postgres lalu langsung dikirim ke frontend.",
+              title: "1. Proses transcript",
+              desc: "Ambil transcript + SRT dan simpan sekali.",
+            },
+            {
+              title: "2. Fitur terpisah",
+              desc: "Ringkasan, Q&A, dan mindmap dipicu manual di halaman masing-masing.",
+            },
+            {
+              title: "3. Simpan & revisi",
+              desc: "Gunakan prompt unik tiap fitur untuk mendapatkan output sesuai kebutuhan.",
             },
           ].map((item) => (
-            <Card key={item.title} className="border-white/10 bg-white/10 text-white">
+            <Card
+              key={item.title}
+              className="border-white/10 bg-white/10 text-white"
+            >
               <CardHeader>
                 <CardTitle>{item.title}</CardTitle>
-                <CardDescription className="text-white/75">{item.desc}</CardDescription>
+                <CardDescription className="text-white/75">
+                  {item.desc}
+                </CardDescription>
               </CardHeader>
             </Card>
           ))}
