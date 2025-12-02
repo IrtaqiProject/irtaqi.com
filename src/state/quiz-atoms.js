@@ -1,0 +1,8 @@
+import { atom } from "jotai";
+
+export const currentIndexAtom = atom(0);
+export const selectionsAtom = atom({});
+export const revealedAtom = atom({});
+export const scoreAtom = atom(0);
+export const showResultsAtom = atom(false);
+export const validationAtom = atom("");

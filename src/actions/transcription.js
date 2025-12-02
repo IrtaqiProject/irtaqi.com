@@ -11,6 +11,26 @@ const processSchema = z.object({
   prompt: z.string().optional(),
 });
 
+function estimateDurationSeconds(segments) {
+  if (!Array.isArray(segments) || segments.length === 0) return null;
+  const seconds = segments.reduce((max, seg) => {
+    const start = Number(seg?.start ?? 0);
+    const duration = Number(seg?.duration ?? 0);
+    return Math.max(max, start + duration);
+  }, 0);
+  return Math.round(seconds);
+}
+
+function decideQuizCount(durationSeconds) {
+  if (!durationSeconds || Number.isNaN(durationSeconds)) return 10;
+  const minutes = durationSeconds / 60;
+  if (minutes < 15) return 10;
+  if (minutes < 30) return 15;
+  if (minutes < 60) return 25;
+  if (minutes > 120) return 30;
+  return 25; // default untuk 60–120 menit
+}
+
 export async function processYoutubeTranscriptionAction(input) {
   const parsed = processSchema.safeParse(input ?? {});
   if (!parsed.success) {
@@ -23,9 +43,14 @@ export async function processYoutubeTranscriptionAction(input) {
   }
 
   const transcript = await fetchYoutubeTranscript(videoId);
+  const durationSeconds = estimateDurationSeconds(transcript.segments);
+  const quizCount = decideQuizCount(durationSeconds);
+
   const insights = await generateInsightsFromTranscript(transcript.text, {
     prompt: parsed.data.prompt,
     videoTitle: `https://www.youtube.com/watch?v=${videoId}`,
+    quizCount,
+    durationSeconds,
   });
 
   const saved = await saveTranscriptResult({
@@ -37,6 +62,8 @@ export async function processYoutubeTranscriptionAction(input) {
     summary: insights.summary,
     qa: insights.qa,
     mindmap: insights.mindmap,
+    quiz: insights.quiz,
+    durationSeconds,
     model: insights.model,
   });
 
@@ -47,11 +74,14 @@ export async function processYoutubeTranscriptionAction(input) {
     summary: insights.summary,
     qa: insights.qa,
     mindmap: insights.mindmap,
+    quiz: insights.quiz,
     transcript: transcript.text,
     srt: transcript.srt,
     model: insights.model,
     createdAt: saved?.created_at ?? null,
     lang: transcript.lang,
+    quizCount,
+    durationSeconds,
   };
 }
 
