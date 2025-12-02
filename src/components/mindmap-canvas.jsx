@@ -1,11 +1,18 @@
 "use client";
 
 import mermaid from "mermaid";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef } from "react";
+import { atom, useAtom } from "jotai";
 
 export function MindmapCanvas({ chart, title = "Peta Pikiran" }) {
-  const [svg, setSvg] = useState("");
-  const [error, setError] = useState("");
+  const svgAtomRef = useRef(null);
+  const errorAtomRef = useRef(null);
+
+  if (!svgAtomRef.current) svgAtomRef.current = atom("");
+  if (!errorAtomRef.current) errorAtomRef.current = atom("");
+
+  const [svg, setSvg] = useAtom(svgAtomRef.current);
+  const [error, setError] = useAtom(errorAtomRef.current);
   const id = useId();
 
   useEffect(() => {

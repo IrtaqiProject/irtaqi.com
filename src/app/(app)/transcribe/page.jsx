@@ -1,9 +1,10 @@
 "use client";
 
 import { useAtom } from "jotai";
-import { Loader2, PlayCircle, Wand2, Rocket } from "lucide-react";
+import Link from "next/link";
+import { Loader2, PlayCircle, Wand2, Rocket, ListChecks } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 
 import { processYoutubeTranscriptionAction } from "@/actions/transcription";
@@ -12,7 +13,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { buildMindmapChart, sanitizeText } from "@/lib/mindmap";
 import { cn } from "@/lib/utils";
-import { errorAtom, loadingAtom, promptAtom, resultAtom, youtubeAtom } from "@/state/transcribe-atoms";
+import {
+  errorAtom,
+  loadingAtom,
+  mindmapChartAtom,
+  mindmapErrorAtom,
+  mindmapLoadingAtom,
+  promptAtom,
+  resultAtom,
+  youtubeAtom,
+} from "@/state/transcribe-atoms";
 
 export default function TranscribePage() {
   const { status } = useSession();
@@ -23,9 +33,9 @@ export default function TranscribePage() {
   const [loading, setLoading] = useAtom(loadingAtom);
   const [result, setResult] = useAtom(resultAtom);
   const [error, setError] = useAtom(errorAtom);
-  const [mindmapChart, setMindmapChart] = useState("");
-  const [mindmapError, setMindmapError] = useState("");
-  const [mindmapLoading, setMindmapLoading] = useState(false);
+  const [mindmapChart, setMindmapChart] = useAtom(mindmapChartAtom);
+  const [mindmapError, setMindmapError] = useAtom(mindmapErrorAtom);
+  const [mindmapLoading, setMindmapLoading] = useAtom(mindmapLoadingAtom);
   const bulletPoints = result?.summary?.bullet_points ?? [];
   const questions = result?.qa?.sample_questions ?? [];
   const mindmapNodes = result?.mindmap?.nodes ?? [];
@@ -186,6 +196,35 @@ export default function TranscribePage() {
                     Video {result.videoId} {result.lang ? `(${result.lang.toUpperCase()})` : ""} · {result.youtubeUrl}
                   </p>
                 </div>
+
+                {result?.quiz ? (
+                  <Card className="border-white/10 bg-gradient-to-r from-[#16213e]/70 via-[#1b1b3a]/75 to-[#112041]/70 text-white shadow-lg">
+                    <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10">
+                          <ListChecks className="h-6 w-6 text-emerald-300" />
+                        </div>
+                        <div>
+                          <CardTitle>Quiz siap dikerjakan</CardTitle>
+                          <CardDescription className="text-white/75">
+                            {result.quiz?.questions?.length ??
+                              result.quiz?.meta?.total_questions ??
+                              result.quizCount ??
+                              0}{" "}
+                            soal dari transkrip ini. Waktu video ±{" "}
+                            {result.durationSeconds ? Math.round(result.durationSeconds / 60) : "?"} menit.
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <Button
+                        asChild
+                        className="bg-gradient-to-r from-[#8b5cf6] via-[#9b5cff] to-[#4f46e5] text-white shadow-brand"
+                      >
+                        <Link href="/quiz">Mulai kuis</Link>
+                      </Button>
+                    </CardHeader>
+                  </Card>
+                ) : null}
 
                 <div className="grid gap-4 md:grid-cols-3">
                   <Card className="border-white/10 bg-white/10 text-white">
