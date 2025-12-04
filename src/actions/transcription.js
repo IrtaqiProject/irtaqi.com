@@ -3,12 +3,14 @@
 import { z } from "zod";
 
 import { saveTranscriptResult } from "@/lib/db";
-import { generateInsightsFromTranscript, transcribeAudioStub } from "@/lib/openai";
+import {
+  generateInsightsFromTranscript,
+  transcribeAudioStub,
+} from "@/lib/openai";
 import { extractVideoId, fetchYoutubeTranscript } from "@/lib/youtube";
 
 const processSchema = z.object({
   youtubeUrl: z.string().url(),
-  prompt: z.string().optional(),
 });
 
 function estimateDurationSeconds(segments) {
@@ -44,43 +46,30 @@ export async function processYoutubeTranscriptionAction(input) {
 
   const transcript = await fetchYoutubeTranscript(videoId);
   const durationSeconds = estimateDurationSeconds(transcript.segments);
-  const quizCount = decideQuizCount(durationSeconds);
-
-  const insights = await generateInsightsFromTranscript(transcript.text, {
-    prompt: parsed.data.prompt,
-    videoTitle: `https://www.youtube.com/watch?v=${videoId}`,
-    quizCount,
-    durationSeconds,
-  });
 
   const saved = await saveTranscriptResult({
     videoId,
     youtubeUrl: parsed.data.youtubeUrl,
-    prompt: parsed.data.prompt ?? "",
+    prompt: "",
     transcriptText: transcript.text,
     srt: transcript.srt,
-    summary: insights.summary,
-    qa: insights.qa,
-    mindmap: insights.mindmap,
-    quiz: insights.quiz,
+    summary: null,
+    qa: null,
+    mindmap: null,
+    quiz: null,
     durationSeconds,
-    model: insights.model,
+    model: null,
   });
 
   return {
     id: saved?.id ?? null,
     videoId,
     youtubeUrl: parsed.data.youtubeUrl,
-    summary: insights.summary,
-    qa: insights.qa,
-    mindmap: insights.mindmap,
-    quiz: insights.quiz,
     transcript: transcript.text,
     srt: transcript.srt,
-    model: insights.model,
+    model: null,
     createdAt: saved?.created_at ?? null,
     lang: transcript.lang,
-    quizCount,
     durationSeconds,
   };
 }
@@ -98,4 +87,84 @@ export async function transcribeDirectAction(input) {
 
   const { audioUrl, prompt } = parsed.data;
   return transcribeAudioStub(audioUrl, prompt);
+}
+
+const featureBaseSchema = z.object({
+  transcript: z.string().min(10, "Transcript kosong atau terlalu singkat."),
+  prompt: z.string().optional(),
+  youtubeUrl: z.string().url().optional(),
+  videoId: z.string().optional(),
+  durationSeconds: z.number().int().nonnegative().nullable().optional(),
+});
+
+const quizSchema = featureBaseSchema.extend({
+  quizCount: z.number().int().positive().max(60).optional(),
+});
+
+function resolveVideoTitle(videoId, youtubeUrl) {
+  if (youtubeUrl) return youtubeUrl;
+  if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
+  return "Transkrip YouTube";
+}
+
+export async function generateSummaryAction(input) {
+  const parsed = featureBaseSchema.safeParse(input ?? {});
+  if (!parsed.success) throw new Error("Input tidak valid untuk ringkasan");
+
+  const { transcript, prompt, videoId, youtubeUrl, durationSeconds } = parsed.data;
+  const insights = await generateInsightsFromTranscript(transcript, {
+    prompt,
+    videoTitle: resolveVideoTitle(videoId, youtubeUrl),
+    quizCount: decideQuizCount(durationSeconds ?? null),
+    durationSeconds: durationSeconds ?? null,
+  });
+
+  return { summary: insights.summary, model: insights.model };
+}
+
+export async function generateQaAction(input) {
+  const parsed = featureBaseSchema.safeParse(input ?? {});
+  if (!parsed.success) throw new Error("Input tidak valid untuk Q&A");
+
+  const { transcript, prompt, videoId, youtubeUrl, durationSeconds } = parsed.data;
+  const insights = await generateInsightsFromTranscript(transcript, {
+    prompt,
+    videoTitle: resolveVideoTitle(videoId, youtubeUrl),
+    quizCount: decideQuizCount(durationSeconds ?? null),
+    durationSeconds: durationSeconds ?? null,
+  });
+
+  return { qa: insights.qa, model: insights.model };
+}
+
+export async function generateMindmapAction(input) {
+  const parsed = featureBaseSchema.safeParse(input ?? {});
+  if (!parsed.success) throw new Error("Input tidak valid untuk mindmap");
+
+  const { transcript, prompt, videoId, youtubeUrl, durationSeconds } = parsed.data;
+  const insights = await generateInsightsFromTranscript(transcript, {
+    prompt,
+    videoTitle: resolveVideoTitle(videoId, youtubeUrl),
+    quizCount: decideQuizCount(durationSeconds ?? null),
+    durationSeconds: durationSeconds ?? null,
+  });
+
+  return { mindmap: insights.mindmap, model: insights.model };
+}
+
+export async function generateQuizAction(input) {
+  const parsed = quizSchema.safeParse(input ?? {});
+  if (!parsed.success) throw new Error("Input tidak valid untuk quiz");
+
+  const { transcript, prompt, videoId, youtubeUrl, durationSeconds, quizCount } = parsed.data;
+  const resolvedQuizCount = quizCount ?? decideQuizCount(durationSeconds ?? null);
+
+  const insights = await generateInsightsFromTranscript(transcript, {
+    prompt,
+    videoTitle: resolveVideoTitle(videoId, youtubeUrl),
+    quizCount: resolvedQuizCount,
+    durationSeconds: durationSeconds ?? null,
+  });
+
+  return { quiz: insights.quiz, model: insights.model, durationSeconds: durationSeconds ?? null };
 }
