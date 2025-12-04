@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { saveTranscriptResult } from "@/lib/db";
 import {
+  generateInsightsFromTranscript,
   generateMindmapFromTranscript,
   generateQaFromTranscript,
   generateSummaryFromTranscript,

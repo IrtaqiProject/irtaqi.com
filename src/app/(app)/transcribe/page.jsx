@@ -3,18 +3,21 @@
 import Link from "next/link";
 import { useAtom } from "jotai";
 import {
+  ListChecks,
   GitBranch,
   Loader2,
   MessageSquare,
   PlayCircle,
   Rocket,
   Sparkles,
+  Wand2,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
 import { processYoutubeTranscriptionAction } from "@/actions/transcription";
+import { MindmapCanvas } from "@/components/mindmap-canvas";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,6 +26,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { buildMindmapChart } from "@/lib/mindmap";
 import { cn } from "@/lib/utils";
 import {
   mindmapChartAtom,
@@ -47,12 +51,19 @@ export default function TranscribePage() {
   const [, setSummaryResult] = useAtom(summaryResultAtom);
   const [, setQaResult] = useAtom(qaResultAtom);
   const [, setMindmapResult] = useAtom(mindmapResultAtom);
-  const [, setMindmapChart] = useAtom(mindmapChartAtom);
-  const [, setMindmapRenderError] = useAtom(mindmapRenderErrorAtom);
+  const [mindmapChart, setMindmapChart] = useAtom(mindmapChartAtom);
+  const [mindmapRenderError, setMindmapRenderError] = useAtom(mindmapRenderErrorAtom);
+  const [mindmapLoading, setMindmapLoading] = useState(false);
 
   const transcriptPreview =
     transcript?.transcript?.slice(0, 1200) ?? "";
   const srtPreview = transcript?.srt?.slice(0, 400) ?? "";
+  const result = transcript;
+  const bulletPoints = result?.summary?.bullet_points ?? [];
+  const questions = result?.qa?.sample_questions ?? [];
+  const mindmapNodes = result?.mindmap?.nodes ?? [];
+  const mindmapOutline = result?.mindmap?.outline_markdown ?? "";
+  const mindmapTitle = result?.mindmap?.title ?? "Peta Pikiran Kajian";
   const featureLinks = [
     {
       href: "/summarize",
@@ -116,6 +127,9 @@ export default function TranscribePage() {
         youtubeUrl,
       });
       setTranscript(data);
+      setSummaryResult(data);
+      setQaResult(data);
+      setMindmapResult(data);
     } catch (err) {
       setError(
         err instanceof Error
@@ -125,6 +139,24 @@ export default function TranscribePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBuildMindmap = () => {
+    setMindmapRenderError("");
+    if (!mindmapNodes.length) {
+      setMindmapRenderError("Mind map belum tersedia. Jalankan transcribe atau pastikan node ada.");
+      return;
+    }
+
+    setMindmapLoading(true);
+    const chart = buildMindmapChart(mindmapNodes, mindmapTitle);
+    if (!chart) {
+      setMindmapRenderError("Mind map belum bisa dibuat. Pastikan struktur node lengkap.");
+      setMindmapChart("");
+    } else {
+      setMindmapChart(chart);
+    }
+    setMindmapLoading(false);
   };
 
   return (
@@ -370,7 +402,9 @@ export default function TranscribePage() {
                         )}
                         Buat Mind Map (Mermaid)
                       </Button>
-                      {mindmapError ? <p className="text-xs text-amber-200">{mindmapError}</p> : null}
+                      {mindmapRenderError ? (
+                        <p className="text-xs text-amber-200">{mindmapRenderError}</p>
+                      ) : null}
                     </CardContent>
                   </Card>
                 </div>
