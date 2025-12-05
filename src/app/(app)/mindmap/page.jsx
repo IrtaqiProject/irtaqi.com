@@ -95,6 +95,7 @@ export default function MindmapPage() {
         prompt,
         youtubeUrl: transcriptResult.youtubeUrl,
         videoId: transcriptResult.videoId,
+        transcriptId: transcriptResult.id,
         durationSeconds: transcriptResult.durationSeconds ?? null,
       });
       setMindmapResult({ ...data.mindmap, model: data.model });

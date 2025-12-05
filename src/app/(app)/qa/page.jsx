@@ -67,6 +67,7 @@ export default function QaPage() {
         prompt,
         youtubeUrl: transcriptResult.youtubeUrl,
         videoId: transcriptResult.videoId,
+        transcriptId: transcriptResult.id,
         durationSeconds: transcriptResult.durationSeconds ?? null,
       });
       setQaResult({ sample_questions: data.qa?.sample_questions ?? [], model: data.model });

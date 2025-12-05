@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { saveTranscriptResult } from "@/lib/db";
+import { saveTranscriptResult, updateTranscriptFeatures } from "@/lib/db";
 import {
   generateMindmapFromTranscript,
   generateQaFromTranscript,
@@ -98,6 +98,7 @@ const featureBaseSchema = z.object({
   youtubeUrl: z.string().url().optional(),
   videoId: z.string().optional(),
   durationSeconds: z.number().int().nonnegative().nullable().optional(),
+  transcriptId: z.string().optional(),
 });
 
 const quizSchema = featureBaseSchema.extend({
@@ -114,12 +115,17 @@ export async function generateSummaryAction(input) {
   const parsed = featureBaseSchema.safeParse(input ?? {});
   if (!parsed.success) throw new Error("Input tidak valid untuk ringkasan");
 
-  const { transcript, prompt, videoId, youtubeUrl, durationSeconds } = parsed.data;
+  const { transcript, prompt, videoId, youtubeUrl, durationSeconds, transcriptId } =
+    parsed.data;
   const { summary, model } = await generateSummaryFromTranscript(transcript, {
     prompt,
     videoTitle: resolveVideoTitle(videoId, youtubeUrl),
     durationSeconds: durationSeconds ?? null,
   });
+
+  if (transcriptId) {
+    await updateTranscriptFeatures({ id: transcriptId, summary, model });
+  }
 
   return { summary, model };
 }
@@ -128,12 +134,17 @@ export async function generateQaAction(input) {
   const parsed = featureBaseSchema.safeParse(input ?? {});
   if (!parsed.success) throw new Error("Input tidak valid untuk Q&A");
 
-  const { transcript, prompt, videoId, youtubeUrl, durationSeconds } = parsed.data;
+  const { transcript, prompt, videoId, youtubeUrl, durationSeconds, transcriptId } =
+    parsed.data;
   const { qa, model } = await generateQaFromTranscript(transcript, {
     prompt,
     videoTitle: resolveVideoTitle(videoId, youtubeUrl),
     durationSeconds: durationSeconds ?? null,
   });
+
+  if (transcriptId) {
+    await updateTranscriptFeatures({ id: transcriptId, qa, model });
+  }
 
   return { qa, model };
 }
@@ -142,12 +153,17 @@ export async function generateMindmapAction(input) {
   const parsed = featureBaseSchema.safeParse(input ?? {});
   if (!parsed.success) throw new Error("Input tidak valid untuk mindmap");
 
-  const { transcript, prompt, videoId, youtubeUrl, durationSeconds } = parsed.data;
+  const { transcript, prompt, videoId, youtubeUrl, durationSeconds, transcriptId } =
+    parsed.data;
   const { mindmap, model } = await generateMindmapFromTranscript(transcript, {
     prompt,
     videoTitle: resolveVideoTitle(videoId, youtubeUrl),
     durationSeconds: durationSeconds ?? null,
   });
+
+  if (transcriptId) {
+    await updateTranscriptFeatures({ id: transcriptId, mindmap, model });
+  }
 
   return { mindmap, model };
 }
@@ -156,7 +172,8 @@ export async function generateQuizAction(input) {
   const parsed = quizSchema.safeParse(input ?? {});
   if (!parsed.success) throw new Error("Input tidak valid untuk quiz");
 
-  const { transcript, prompt, videoId, youtubeUrl, durationSeconds, quizCount } = parsed.data;
+  const { transcript, prompt, videoId, youtubeUrl, durationSeconds, quizCount, transcriptId } =
+    parsed.data;
   const resolvedQuizCount = quizCount ?? decideQuizCount(durationSeconds ?? null);
 
   const { quiz, model } = await generateQuizFromTranscript(transcript, {
@@ -165,6 +182,10 @@ export async function generateQuizAction(input) {
     quizCount: resolvedQuizCount,
     durationSeconds: durationSeconds ?? null,
   });
+
+  if (transcriptId) {
+    await updateTranscriptFeatures({ id: transcriptId, quiz, model });
+  }
 
   return { quiz, model, durationSeconds: durationSeconds ?? null };
 }

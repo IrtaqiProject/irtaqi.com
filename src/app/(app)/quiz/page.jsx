@@ -181,6 +181,7 @@ export default function QuizPage() {
         prompt,
         youtubeUrl: transcriptResult.youtubeUrl,
         videoId: transcriptResult.videoId,
+        transcriptId: transcriptResult.id,
         durationSeconds: transcriptResult.durationSeconds ?? null,
       });
       const questions = data.quiz?.questions ?? [];

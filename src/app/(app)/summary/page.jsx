@@ -67,6 +67,7 @@ export default function SummaryPage() {
         prompt,
         youtubeUrl: transcriptResult.youtubeUrl,
         videoId: transcriptResult.videoId,
+        transcriptId: transcriptResult.id,
         durationSeconds: transcriptResult.durationSeconds ?? null,
       });
       setSummaryResult({ ...data.summary, model: data.model });
