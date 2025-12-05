@@ -204,7 +204,7 @@ export default function QuizPage() {
     <StepLayout
       activeKey="quiz"
       title="Uji pemahaman dengan quiz pilihan ganda"
-      subtitle="Siapkan prompt khusus untuk variasi soal. Quiz dibuat hanya ketika tombol dijalankan."
+      subtitle='Siapkan prompt khusus untuk variasi soal.'
     >
       {!transcriptReady ? (
         <Card className="border-white/10 bg-white/5 text-white">
@@ -289,7 +289,7 @@ export default function QuizPage() {
                   )}
                 >
                   {quizLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                  Bangun soal
+                  Jalankan Quiz
                 </Button>
                 {quizResult?.model ? <span className="text-sm text-white/70">Model: {quizResult.model}</span> : null}
               </div>

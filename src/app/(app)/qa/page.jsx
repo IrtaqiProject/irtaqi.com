@@ -84,7 +84,7 @@ export default function QaPage() {
     <StepLayout
       activeKey="qa"
       title="Ingin gali materi lebih dalam? Gunakan Prompt Q&A kapan saja"
-      subtitle="Biarkan sistem menjawab pertanyaan Anda secara langsung dan terarah."
+      subtitle='Biarkan sistem menjawab pertanyaan Anda secara langsung dan terarah.'
     >
       {!transcriptReady ? (
         <Card className="border-white/10 bg-white/5 text-white">

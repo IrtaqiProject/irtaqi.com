@@ -84,7 +84,7 @@ export default function SummaryPage() {
     <StepLayout
       activeKey="summary"
       title="Padatkan transcript jadi ringkasan jelas"
-      subtitle="Gunakan prompt khusus untuk merangkum. Ringkasan hanya dibuat saat tombol dijalankan."
+      subtitle='Gunakan prompt khusus untuk merangkum.'
     >
       {!transcriptReady ? (
         <Card className="border-white/10 bg-white/5 text-white">
@@ -133,8 +133,7 @@ export default function SummaryPage() {
                 )}
               >
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                Jalankan ringkasan
-              </Button>
+                Buat ringkasan              </Button>
             </CardContent>
           </Card>
 

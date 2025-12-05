@@ -4,7 +4,10 @@ import { z } from "zod";
 
 import { saveTranscriptResult } from "@/lib/db";
 import {
-  generateInsightsFromTranscript,
+  generateMindmapFromTranscript,
+  generateQaFromTranscript,
+  generateQuizFromTranscript,
+  generateSummaryFromTranscript,
   transcribeAudioStub,
 } from "@/lib/openai";
 import { extractVideoId, fetchYoutubeTranscript } from "@/lib/youtube";
@@ -112,14 +115,13 @@ export async function generateSummaryAction(input) {
   if (!parsed.success) throw new Error("Input tidak valid untuk ringkasan");
 
   const { transcript, prompt, videoId, youtubeUrl, durationSeconds } = parsed.data;
-  const insights = await generateInsightsFromTranscript(transcript, {
+  const { summary, model } = await generateSummaryFromTranscript(transcript, {
     prompt,
     videoTitle: resolveVideoTitle(videoId, youtubeUrl),
-    quizCount: decideQuizCount(durationSeconds ?? null),
     durationSeconds: durationSeconds ?? null,
   });
 
-  return { summary: insights.summary, model: insights.model };
+  return { summary, model };
 }
 
 export async function generateQaAction(input) {
@@ -127,14 +129,13 @@ export async function generateQaAction(input) {
   if (!parsed.success) throw new Error("Input tidak valid untuk Q&A");
 
   const { transcript, prompt, videoId, youtubeUrl, durationSeconds } = parsed.data;
-  const insights = await generateInsightsFromTranscript(transcript, {
+  const { qa, model } = await generateQaFromTranscript(transcript, {
     prompt,
     videoTitle: resolveVideoTitle(videoId, youtubeUrl),
-    quizCount: decideQuizCount(durationSeconds ?? null),
     durationSeconds: durationSeconds ?? null,
   });
 
-  return { qa: insights.qa, model: insights.model };
+  return { qa, model };
 }
 
 export async function generateMindmapAction(input) {
@@ -142,14 +143,13 @@ export async function generateMindmapAction(input) {
   if (!parsed.success) throw new Error("Input tidak valid untuk mindmap");
 
   const { transcript, prompt, videoId, youtubeUrl, durationSeconds } = parsed.data;
-  const insights = await generateInsightsFromTranscript(transcript, {
+  const { mindmap, model } = await generateMindmapFromTranscript(transcript, {
     prompt,
     videoTitle: resolveVideoTitle(videoId, youtubeUrl),
-    quizCount: decideQuizCount(durationSeconds ?? null),
     durationSeconds: durationSeconds ?? null,
   });
 
-  return { mindmap: insights.mindmap, model: insights.model };
+  return { mindmap, model };
 }
 
 export async function generateQuizAction(input) {
@@ -159,12 +159,12 @@ export async function generateQuizAction(input) {
   const { transcript, prompt, videoId, youtubeUrl, durationSeconds, quizCount } = parsed.data;
   const resolvedQuizCount = quizCount ?? decideQuizCount(durationSeconds ?? null);
 
-  const insights = await generateInsightsFromTranscript(transcript, {
+  const { quiz, model } = await generateQuizFromTranscript(transcript, {
     prompt,
     videoTitle: resolveVideoTitle(videoId, youtubeUrl),
     quizCount: resolvedQuizCount,
     durationSeconds: durationSeconds ?? null,
   });
 
-  return { quiz: insights.quiz, model: insights.model, durationSeconds: durationSeconds ?? null };
+  return { quiz, model, durationSeconds: durationSeconds ?? null };
 }

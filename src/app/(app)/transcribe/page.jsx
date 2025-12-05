@@ -9,7 +9,13 @@ import { useSession } from "next-auth/react";
 
 import { processYoutubeTranscriptionAction } from "@/actions/transcription";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { StepLayout } from "@/components/step-layout";
 import { cn } from "@/lib/utils";
 import {
@@ -65,7 +71,9 @@ export default function TranscribePage() {
   if (status === "unauthenticated") {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#1b1145] via-[#130d32] to-[#0b0820] text-white">
-        <p className="text-sm text-white/70">Mengalihkan ke halaman login...</p>
+        <p className="text-sm text-white/70">
+          Mengalihkan ke halaman login...
+        </p>
       </main>
     );
   }
@@ -101,10 +109,16 @@ export default function TranscribePage() {
     setResult(null);
     resetFeatureStates();
     try {
-      const data = await processYoutubeTranscriptionAction({ youtubeUrl });
+      const data = await processYoutubeTranscriptionAction({
+        youtubeUrl,
+      });
       setResult(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal memproses transcript");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Gagal memproses transcript"
+      );
     } finally {
       setLoading(false);
     }
@@ -123,7 +137,8 @@ export default function TranscribePage() {
         <CardHeader>
           <CardTitle>Transcribe video</CardTitle>
           <CardDescription className="text-white/80">
-            Masukkan URL YouTube lalu tekan &quot;Proses &amp; simpan&quot;. Transcript dan SRT lengkap akan tersimpan
+            Masukkan URL YouTube lalu tekan &quot;Proses &amp;
+            simpan&quot;. Transcript dan SRT lengkap akan tersimpan
             dan siap dipakai di langkah berikutnya.
           </CardDescription>
         </CardHeader>
@@ -142,39 +157,74 @@ export default function TranscribePage() {
                 />
               </div>
             </label>
-            {error ? <p className="text-sm text-amber-300">{error}</p> : null}
+            {error ? (
+              <p className="text-sm text-amber-300">{error}</p>
+            ) : null}
             <Button
               type="submit"
               disabled={loading}
               className={cn(
-                "w-full bg-gradient-to-r from-[#8b5cf6] via-[#9b5cff] to-[#4f46e5] text-white shadow-brand",
+                "w-full bg-gradient-to-r from-[#8b5cf6] via-[#9b5cff] to-[#4f46e5] text-white shadow-brand"
               )}
             >
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Rocket className="mr-2 h-4 w-4" />}
-              Proses & simpan
+              {loading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Rocket className="mr-2 h-4 w-4" />
+              )}
+              Buat Transcribe
             </Button>
           </form>
 
           {result ? (
             <div className="mt-6 space-y-4">
               <div className="rounded-2xl border border-emerald-300/30 bg-emerald-500/15 p-4 text-sm shadow-inner">
-                <p className="font-semibold text-emerald-200">Transcript siap dipakai</p>
-                <p className="text-white/80">
-                  Disimpan dengan ID <span className="font-mono">{result.id ?? "–"}</span>. Video {result.videoId}
-                  {result.lang ? ` (${result.lang.toUpperCase()})` : ""}.
+                <p className="font-semibold text-emerald-200">
+                  Transcript siap dipakai
                 </p>
-                <p className="mt-2 text-xs text-white/60">{result.youtubeUrl}</p>
+                <p className="text-white/80">
+                  Disimpan dengan ID{" "}
+                  <span className="font-mono">
+                    {result.id ?? "–"}
+                  </span>
+                  . Video {result.videoId}
+                  {result.lang
+                    ? ` (${result.lang.toUpperCase()})`
+                    : ""}
+                  .
+                </p>
+                <p className="mt-2 text-xs text-white/60">
+                  {result.youtubeUrl}
+                </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button size="sm" asChild className="bg-white text-[#120b34]">
+                  <Button
+                    size="sm"
+                    asChild
+                    className="bg-white text-[#120b34]"
+                  >
                     <Link href="/summary">Lanjut ke Summarize</Link>
                   </Button>
-                  <Button size="sm" variant="secondary" asChild className="bg-white/15 text-white hover:bg-white/20">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    asChild
+                    className="bg-white/15 text-white hover:bg-white/20"
+                  >
                     <Link href="/qa">Langkah Q&amp;A</Link>
                   </Button>
-                  <Button size="sm" variant="secondary" asChild className="bg-white/15 text-white hover:bg-white/20">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    asChild
+                    className="bg-white/15 text-white hover:bg-white/20"
+                  >
                     <Link href="/mindmap">Langkah Mindmap</Link>
                   </Button>
-                  <Button size="sm" asChild className="bg-gradient-to-r from-[#8b5cf6] via-[#9b5cff] to-[#4f46e5] text-white">
+                  <Button
+                    size="sm"
+                    asChild
+                    className="bg-gradient-to-r from-[#8b5cf6] via-[#9b5cff] to-[#4f46e5] text-white"
+                  >
                     <Link href="/quiz">Langkah Quiz</Link>
                   </Button>
                 </div>
@@ -184,7 +234,8 @@ export default function TranscribePage() {
                 <CardHeader>
                   <CardTitle>Transcript &amp; SRT penuh</CardTitle>
                   <CardDescription className="text-white/75">
-                    Konten lengkap ditampilkan tanpa pemotongan agar mudah dicek dan disalin.
+                    Konten lengkap ditampilkan tanpa pemotongan agar
+                    mudah dicek dan disalin.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
