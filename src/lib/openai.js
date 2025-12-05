@@ -90,9 +90,10 @@ function buildUserContent({ videoTitle, prompt, transcript, durationSeconds = nu
 
 async function runJsonCompletion({ systemPrompt, userContent }) {
   const client = getOpenAIClient();
+  const model = process.env.OPENAI_MODEL ?? "gpt-5-mini";
   const completion = await client.chat.completions.create({
-    model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
-    temperature: 0.4,
+    model,
+    ...(model?.startsWith("gpt-5") ? {} : { temperature: 0.4 }),
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: systemPrompt },
