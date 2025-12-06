@@ -56,12 +56,7 @@ export async function processYoutubeTranscriptionAction(input) {
     prompt: "",
     transcriptText: transcript.text,
     srt: transcript.srt,
-    summary: null,
-    qa: null,
-    mindmap: null,
-    quiz: null,
     durationSeconds,
-    model: null,
   });
 
   return {
@@ -111,21 +106,35 @@ function resolveVideoTitle(videoId, youtubeUrl) {
   return "Transkrip YouTube";
 }
 
+function requireTranscriptId(transcriptId) {
+  if (!transcriptId) {
+    throw new Error("Transcript belum tersimpan. Ulangi langkah transcribe untuk mendapatkan ID.");
+  }
+  return transcriptId;
+}
+
+async function persistFeatures(transcriptId, updates) {
+  const saved = await updateTranscriptFeatures({ id: transcriptId, ...updates });
+  if (!saved) {
+    throw new Error("Gagal menyimpan hasil. Coba ulangi proses generate.");
+  }
+  return saved;
+}
+
 export async function generateSummaryAction(input) {
   const parsed = featureBaseSchema.safeParse(input ?? {});
   if (!parsed.success) throw new Error("Input tidak valid untuk ringkasan");
 
   const { transcript, prompt, videoId, youtubeUrl, durationSeconds, transcriptId } =
     parsed.data;
+  const ensuredTranscriptId = requireTranscriptId(transcriptId);
   const { summary, model } = await generateSummaryFromTranscript(transcript, {
     prompt,
     videoTitle: resolveVideoTitle(videoId, youtubeUrl),
     durationSeconds: durationSeconds ?? null,
   });
 
-  if (transcriptId) {
-    await updateTranscriptFeatures({ id: transcriptId, summary, model });
-  }
+  await persistFeatures(ensuredTranscriptId, { summary, model });
 
   return { summary, model };
 }
@@ -136,15 +145,14 @@ export async function generateQaAction(input) {
 
   const { transcript, prompt, videoId, youtubeUrl, durationSeconds, transcriptId } =
     parsed.data;
+  const ensuredTranscriptId = requireTranscriptId(transcriptId);
   const { qa, model } = await generateQaFromTranscript(transcript, {
     prompt,
     videoTitle: resolveVideoTitle(videoId, youtubeUrl),
     durationSeconds: durationSeconds ?? null,
   });
 
-  if (transcriptId) {
-    await updateTranscriptFeatures({ id: transcriptId, qa, model });
-  }
+  await persistFeatures(ensuredTranscriptId, { qa, model });
 
   return { qa, model };
 }
@@ -155,15 +163,14 @@ export async function generateMindmapAction(input) {
 
   const { transcript, prompt, videoId, youtubeUrl, durationSeconds, transcriptId } =
     parsed.data;
+  const ensuredTranscriptId = requireTranscriptId(transcriptId);
   const { mindmap, model } = await generateMindmapFromTranscript(transcript, {
     prompt,
     videoTitle: resolveVideoTitle(videoId, youtubeUrl),
     durationSeconds: durationSeconds ?? null,
   });
 
-  if (transcriptId) {
-    await updateTranscriptFeatures({ id: transcriptId, mindmap, model });
-  }
+  await persistFeatures(ensuredTranscriptId, { mindmap, model });
 
   return { mindmap, model };
 }
@@ -174,6 +181,7 @@ export async function generateQuizAction(input) {
 
   const { transcript, prompt, videoId, youtubeUrl, durationSeconds, quizCount, transcriptId } =
     parsed.data;
+  const ensuredTranscriptId = requireTranscriptId(transcriptId);
   const resolvedQuizCount = quizCount ?? decideQuizCount(durationSeconds ?? null);
 
   const { quiz, model } = await generateQuizFromTranscript(transcript, {
@@ -183,9 +191,7 @@ export async function generateQuizAction(input) {
     durationSeconds: durationSeconds ?? null,
   });
 
-  if (transcriptId) {
-    await updateTranscriptFeatures({ id: transcriptId, quiz, model });
-  }
+  await persistFeatures(ensuredTranscriptId, { quiz, model });
 
   return { quiz, model, durationSeconds: durationSeconds ?? null };
 }
