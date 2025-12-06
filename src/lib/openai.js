@@ -5,7 +5,9 @@ let cachedClient = null;
 export function getOpenAIClient() {
   if (cachedClient) return cachedClient;
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is missing. Add it to .env.local.");
+    throw new Error(
+      "OPENAI_API_KEY is missing. Add it to .env.local."
+    );
   }
   cachedClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   return cachedClient;
@@ -14,54 +16,78 @@ export function getOpenAIClient() {
 export async function transcribeAudioStub(source, prompt) {
   // Placeholder to avoid network calls during development.
   return {
-    text: `Transcription placeholder for "${source}"${prompt ? ` with prompt "${prompt}"` : ""}.`,
+    text: `Transcription placeholder for "${source}"${
+      prompt ? ` with prompt "${prompt}"` : ""
+    }.`,
   };
 }
 
-function buildStubInsights(transcript, prompt, { quizCount = 10, durationSeconds = null } = {}) {
+function buildStubInsights(
+  transcript,
+  prompt,
+  { quizCount = 10, durationSeconds = null } = {}
+) {
   const excerpt = transcript.slice(0, 180);
-  const quizQuestions = Array.from({ length: quizCount }).map((_, idx) => {
-    const qNumber = idx + 1;
-    const options = [
-      `Pilihan A untuk soal ${qNumber}`,
-      `Pilihan B untuk soal ${qNumber}`,
-      `Pilihan C untuk soal ${qNumber}`,
-      `Pilihan D untuk soal ${qNumber}`,
-    ];
-    return {
-      question: `Contoh soal ${qNumber} dari transkrip.`,
-      options,
-      correct_option_index: qNumber % 4,
-      answer: options[qNumber % 4],
-      explanation: "Penjelasan singkat jawaban benar dari materi.",
-    };
-  });
+  const quizQuestions = Array.from({ length: quizCount }).map(
+    (_, idx) => {
+      const qNumber = idx + 1;
+      const options = [
+        `Pilihan A untuk soal ${qNumber}`,
+        `Pilihan B untuk soal ${qNumber}`,
+        `Pilihan C untuk soal ${qNumber}`,
+        `Pilihan D untuk soal ${qNumber}`,
+      ];
+      return {
+        question: `Contoh soal ${qNumber} dari transkrip.`,
+        options,
+        correct_option_index: qNumber % 4,
+        answer: options[qNumber % 4],
+        explanation: "Penjelasan singkat jawaban benar dari materi.",
+      };
+    }
+  );
 
   return {
     summary: {
-      short: `Ringkasan cepat: ${excerpt}${transcript.length > excerpt.length ? "..." : ""}`,
+      short: `Ringkasan cepat: ${excerpt}${
+        transcript.length > excerpt.length ? "..." : ""
+      }`,
       bullet_points: [
         "Poin inti 1 dari transcript.",
         "Poin inti 2 dengan dalil atau rujukan bila ada.",
         "Poin inti 3 yang dapat diaksi.",
       ],
-      detailed: `Rangkuman detail berbasis transcript. Prompt: ${prompt || "tidak ada"}.`,
+      detailed: `Rangkuman detail berbasis transcript. Prompt: ${
+        prompt || "tidak ada"
+      }.`,
     },
     qa: {
       sample_questions: [
-        { question: "Apa fokus utama kajian ini?", answer: "Pembahasan inti dijelaskan di ringkasan." },
-        { question: "Dalil yang disebutkan?", answer: "Lihat bullet ringkasan untuk rujukan singkat." },
+        {
+          question: "Apa fokus utama kajian ini?",
+          answer: "Pembahasan inti dijelaskan di ringkasan.",
+        },
+        {
+          question: "Dalil yang disebutkan?",
+          answer: "Lihat bullet ringkasan untuk rujukan singkat.",
+        },
       ],
     },
     mindmap: {
       title: "Mindmap Kajian",
       nodes: [
-        { id: "n1", label: "Topik Utama", children: ["n2", "n3", "n4"], note: "Akar mindmap" },
+        {
+          id: "n1",
+          label: "Topik Utama",
+          children: ["n2", "n3", "n4"],
+          note: "Akar mindmap",
+        },
         { id: "n2", label: "Subtopik 1", children: [] },
         { id: "n3", label: "Subtopik 2", children: [] },
         { id: "n4", label: "Subtopik 3", children: [] },
       ],
-      outline_markdown: "- Topik Utama\n  - Subtopik 1\n  - Subtopik 2\n  - Subtopik 3",
+      outline_markdown:
+        "- Topik Utama\n  - Subtopik 1\n  - Subtopik 2\n  - Subtopik 3",
     },
     quiz: {
       meta: {
@@ -74,11 +100,22 @@ function buildStubInsights(transcript, prompt, { quizCount = 10, durationSeconds
   };
 }
 
-function buildUserContent({ videoTitle, prompt, transcript, durationSeconds = null, extras = [] }) {
-  const durationMinutes = typeof durationSeconds === "number" ? Math.round(durationSeconds / 60) : null;
+function buildUserContent({
+  videoTitle,
+  prompt,
+  transcript,
+  durationSeconds = null,
+  extras = [],
+}) {
+  const durationMinutes =
+    typeof durationSeconds === "number"
+      ? Math.round(durationSeconds / 60)
+      : null;
   return [
     `Judul/konteks: ${videoTitle || "kajian YouTube"}.`,
-    durationMinutes !== null ? `Durasi video: ${durationMinutes} menit.` : null,
+    durationMinutes !== null
+      ? `Durasi video: ${durationMinutes} menit.`
+      : null,
     ...extras,
     prompt ? `Permintaan tambahan: ${prompt}` : null,
     "Gunakan transcript berikut sebagai sumber:",
@@ -116,13 +153,18 @@ async function runJsonCompletion({ systemPrompt, userContent }) {
   return { parsed, model: completion.model ?? "openai" };
 }
 
-export async function generateSummaryFromTranscript(transcript, { prompt, videoTitle, durationSeconds } = {}) {
+export async function generateSummaryFromTranscript(
+  transcript,
+  { prompt, videoTitle, durationSeconds } = {}
+) {
   if (!transcript?.trim()) {
     throw new Error("Transcript kosong atau tidak ditemukan.");
   }
 
   if (!process.env.OPENAI_API_KEY) {
-    const stub = buildStubInsights(transcript, prompt, { durationSeconds });
+    const stub = buildStubInsights(transcript, prompt, {
+      durationSeconds,
+    });
     return { summary: stub.summary, model: stub.model };
   }
 
@@ -147,19 +189,32 @@ Ketentuan:
 - Jangan menulis apa pun di luar objek JSON.
 `.trim();
 
-  const userContent = buildUserContent({ videoTitle, prompt, transcript, durationSeconds });
-  const { parsed, model } = await runJsonCompletion({ systemPrompt, userContent });
+  const userContent = buildUserContent({
+    videoTitle,
+    prompt,
+    transcript,
+    durationSeconds,
+  });
+  const { parsed, model } = await runJsonCompletion({
+    systemPrompt,
+    userContent,
+  });
 
   return { summary: parsed.summary ?? {}, model };
 }
 
-export async function generateQaFromTranscript(transcript, { prompt, videoTitle, durationSeconds } = {}) {
+export async function generateQaFromTranscript(
+  transcript,
+  { prompt, videoTitle, durationSeconds } = {}
+) {
   if (!transcript?.trim()) {
     throw new Error("Transcript kosong atau tidak ditemukan.");
   }
 
   if (!process.env.OPENAI_API_KEY) {
-    const stub = buildStubInsights(transcript, prompt, { durationSeconds });
+    const stub = buildStubInsights(transcript, prompt, {
+      durationSeconds,
+    });
     return { qa: stub.qa, model: stub.model };
   }
 
@@ -182,19 +237,32 @@ Ketentuan:
 - Jangan menulis apa pun di luar objek JSON; seluruh isi harus bersumber langsung dari transkrip.
 `.trim();
 
-  const userContent = buildUserContent({ videoTitle, prompt, transcript, durationSeconds });
-  const { parsed, model } = await runJsonCompletion({ systemPrompt, userContent });
+  const userContent = buildUserContent({
+    videoTitle,
+    prompt,
+    transcript,
+    durationSeconds,
+  });
+  const { parsed, model } = await runJsonCompletion({
+    systemPrompt,
+    userContent,
+  });
 
   return { qa: parsed.qa ?? {}, model };
 }
 
-export async function generateMindmapFromTranscript(transcript, { prompt, videoTitle, durationSeconds } = {}) {
+export async function generateMindmapFromTranscript(
+  transcript,
+  { prompt, videoTitle, durationSeconds } = {}
+) {
   if (!transcript?.trim()) {
     throw new Error("Transcript kosong atau tidak ditemukan.");
   }
 
   if (!process.env.OPENAI_API_KEY) {
-    const stub = buildStubInsights(transcript, prompt, { durationSeconds });
+    const stub = buildStubInsights(transcript, prompt, {
+      durationSeconds,
+    });
     return { mindmap: stub.mindmap, model: stub.model };
   }
 
@@ -222,15 +290,28 @@ Ketentuan:
 - Jangan menulis apa pun di luar objek JSON.
 `.trim();
 
-  const userContent = buildUserContent({ videoTitle, prompt, transcript, durationSeconds });
-  const { parsed, model } = await runJsonCompletion({ systemPrompt, userContent });
+  const userContent = buildUserContent({
+    videoTitle,
+    prompt,
+    transcript,
+    durationSeconds,
+  });
+  const { parsed, model } = await runJsonCompletion({
+    systemPrompt,
+    userContent,
+  });
 
   return { mindmap: parsed.mindmap ?? {}, model };
 }
 
 export async function generateQuizFromTranscript(
   transcript,
-  { prompt, videoTitle, quizCount: quizCountInput = 10, durationSeconds } = {},
+  {
+    prompt,
+    videoTitle,
+    quizCount: quizCountInput = 10,
+    durationSeconds,
+  } = {}
 ) {
   if (!transcript?.trim()) {
     throw new Error("Transcript kosong atau tidak ditemukan.");
@@ -239,7 +320,10 @@ export async function generateQuizFromTranscript(
   const quizCount = quizCountInput ?? 10;
 
   if (!process.env.OPENAI_API_KEY) {
-    const stub = buildStubInsights(transcript, prompt, { quizCount, durationSeconds });
+    const stub = buildStubInsights(transcript, prompt, {
+      quizCount,
+      durationSeconds,
+    });
     return { quiz: stub.quiz, model: stub.model };
   }
 
@@ -267,19 +351,34 @@ Ketentuan:
 - "options" berisi 4 opsi unik dan jelas; acak posisi jawaban benar.
 - "correct_option_index" (0–3) harus menunjuk opsi benar; "answer" harus sama dengan options[correct_option_index].
 - "explanation" 1–3 kalimat yang merujuk dalil/contoh pada transkrip.
-- Isi "meta.total_questions" dengan ${quizCount}; isi "meta.duration_seconds" dengan ${durationSeconds ?? "null"}.
+- Isi "meta.total_questions" dengan ${quizCount}; isi "meta.duration_seconds" dengan ${
+    durationSeconds ?? "null"
+  }.
 - Gunakan Bahasa Indonesia yang ringkas; jangan menulis apa pun di luar objek JSON.
 `.trim();
 
   const extras = [
     `Target soal kuis: ${quizCount}.`,
     durationSeconds !== undefined
-      ? `Durasi video: ${durationSeconds !== null ? `${Math.round(durationSeconds / 60)} menit` : "tidak diketahui"}.`
+      ? `Durasi video: ${
+          durationSeconds !== null
+            ? `${Math.round(durationSeconds / 60)} menit`
+            : "tidak diketahui"
+        }.`
       : null,
   ];
 
-  const userContent = buildUserContent({ videoTitle, prompt, transcript, durationSeconds, extras });
-  const { parsed, model } = await runJsonCompletion({ systemPrompt, userContent });
+  const userContent = buildUserContent({
+    videoTitle,
+    prompt,
+    transcript,
+    durationSeconds,
+    extras,
+  });
+  const { parsed, model } = await runJsonCompletion({
+    systemPrompt,
+    userContent,
+  });
 
   return { quiz: parsed.quiz ?? {}, model };
 }
