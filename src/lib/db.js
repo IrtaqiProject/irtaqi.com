@@ -51,6 +51,26 @@ function saveToMemory(payload) {
   return record;
 }
 
+function mergeIntoMemory(id, updates) {
+  const index = memoryStore.findIndex((item) => item.id === id);
+  if (index === -1) return null;
+
+  const definedUpdates = Object.fromEntries(
+    Object.entries(updates).filter(([, value]) => value !== undefined),
+  );
+  if (Object.keys(definedUpdates).length === 0) return memoryStore[index];
+
+  const merged = {
+    ...memoryStore[index],
+    ...definedUpdates,
+  };
+
+  memoryStore[index] = merged;
+  globalStore._memoryTranscriptStore = memoryStore;
+
+  return merged;
+}
+
 export async function saveTranscriptResult({
   videoId,
   youtubeUrl,
@@ -158,5 +178,74 @@ export async function saveTranscriptResult({
       duration_seconds: durationSeconds ?? null,
       model,
     });
+  }
+}
+
+export async function updateTranscriptFeatures({
+  id,
+  summary,
+  qa,
+  mindmap,
+  quiz,
+  model,
+}) {
+  if (!id) return null;
+
+  const updates = { summary, qa, mindmap, quiz, model };
+  const definedEntries = Object.entries(updates).filter(([, value]) => value !== undefined);
+  if (!definedEntries.length) return null;
+
+  if (dbDisabled) {
+    return mergeIntoMemory(id, updates);
+  }
+
+  const db = createPool();
+  if (!db) {
+    return mergeIntoMemory(id, updates);
+  }
+
+  const setClauses = [];
+  const values = [];
+  let idx = 1;
+
+  if (summary !== undefined) {
+    setClauses.push(`summary = $${idx}::jsonb`);
+    values.push(toJsonb(summary));
+    idx += 1;
+  }
+  if (qa !== undefined) {
+    setClauses.push(`qa = $${idx}::jsonb`);
+    values.push(toJsonb(qa));
+    idx += 1;
+  }
+  if (mindmap !== undefined) {
+    setClauses.push(`mindmap = $${idx}::jsonb`);
+    values.push(toJsonb(mindmap));
+    idx += 1;
+  }
+  if (quiz !== undefined) {
+    setClauses.push(`quiz = $${idx}::jsonb`);
+    values.push(toJsonb(quiz));
+    idx += 1;
+  }
+  if (model !== undefined) {
+    setClauses.push(`model = $${idx}`);
+    values.push(model ?? null);
+    idx += 1;
+  }
+
+  values.push(id);
+
+  try {
+    const { rows } = await db.query(
+      `UPDATE transcripts SET ${setClauses.join(", ")} WHERE id = $${idx} RETURNING *`,
+      values,
+    );
+    return rows?.[0] ?? null;
+  } catch (err) {
+    dbDisabled = true;
+    globalStore._pgDisabled = true;
+    console.warn("[db] Update transcript gagal, fallback ke memory store.", err.message);
+    return mergeIntoMemory(id, updates);
   }
 }

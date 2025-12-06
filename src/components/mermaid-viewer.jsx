@@ -12,14 +12,22 @@ export function MermaidViewer({ title = "Flow", chart }) {
   const id = useId();
 
   useEffect(() => {
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: "loose",
-      theme: "neutral",
-    });
+    const normalizedChart = chart?.trim();
+    if (!normalizedChart) {
+      setSvg('<p class="text-sm text-muted-foreground">Diagram kosong.</p>');
+      return;
+    }
 
     const renderDiagram = async () => {
-      const { svg } = await mermaid.render(`${id}-diagram`, chart);
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: "loose",
+        theme: "neutral",
+      });
+
+      // Pre-parse to avoid rendering Mermaid's bomb error SVG and provide friendlier feedback.
+      mermaid.parse(normalizedChart);
+      const { svg } = await mermaid.render(`${id}-diagram`, normalizedChart);
       setSvg(svg);
     };
 
@@ -27,7 +35,7 @@ export function MermaidViewer({ title = "Flow", chart }) {
       console.error("Failed to render mermaid diagram", error);
       setSvg(`<pre class="text-red-500">${error instanceof Error ? error.message : "Failed to render diagram"}</pre>`);
     });
-  }, [chart, id]);
+  }, [chart, id, setSvg]);
 
   return (
     <Card className="overflow-hidden">
