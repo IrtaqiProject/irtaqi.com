@@ -3,21 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const sample = `
-sequenceDiagram
-  autonumber
-  participant U as User
-  participant N as Next.js Server Action
-  participant Y as YouTube Transcript/SRT
-  participant L as LLM
-  participant P as Postgres
-  U->>N: Submit YouTube URL + prompt
-  N->>Y: Fetch transcript / SRT
-  Y-->>N: Transcript text
-  N->>L: Ringkasan + Q&A + mindmap
-  L-->>N: JSON hasil
-  N->>P: Simpan transcript + hasil
-  P-->>N: Record ID + timestamp
-  N-->>U: Kirim hasil ke frontend
+flowchart TB
+  U([User]) -->|Paste URL| N[Server Action]
+  N -->|Fetch| Y[YouTube Transcript]
+  Y -->|LLM outputs| L[Summary/Q&A/Mindmap]
+  L --> P[(Postgres)]
+  P --> U
 `;
 
 export default function MermaidPage() {
