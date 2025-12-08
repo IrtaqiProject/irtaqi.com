@@ -1,13 +1,30 @@
-import { ArrowRight, BookOpen, Brain, Database, Globe, Moon, Search, Sparkles, Wand2 } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  Brain,
+  Database,
+  Globe,
+  Moon,
+  Search,
+  Sparkles,
+  Wand2,
+} from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 const aiPillars = [
   {
     title: "Transcribe lectures",
-    description: "Proses otomatis kajian Indonesia untuk mendapatkan transcript yang bisa diedit.",
+    description:
+      "Proses otomatis kajian Indonesia untuk mendapatkan transcript yang bisa diedit.",
     icon: <BookOpen className="h-5 w-5 text-emerald-400" />,
     badge: "Step 1",
   },
@@ -19,17 +36,17 @@ const aiPillars = [
     badge: "Step 2",
   },
   {
-    title: "Quiz interaktif",
-    description:
-      "Hasilkan soal MCQ, benar/salah, atau short answer untuk belajar ala Kahoot/Quizizz.",
-    icon: <Brain className="h-5 w-5 text-sky-300" />,
-    badge: "Step 3",
-  },
-  {
     title: "Mindmap hidup",
     description:
       "Visualisasi hierarki topik dengan mindmap interaktif agar konsep lebih mudah dipahami.",
     icon: <Globe className="h-5 w-5 text-indigo-300" />,
+    badge: "Step 3",
+  },
+  {
+    title: "Quiz interaktif",
+    description:
+      "Hasilkan soal MCQ, benar/salah, atau short answer untuk belajar ala Kahoot/Quizizz.",
+    icon: <Brain className="h-5 w-5 text-sky-300" />,
     badge: "Step 4",
   },
 ];
@@ -37,27 +54,33 @@ const aiPillars = [
 const features = [
   {
     title: "Summaries otomatis",
-    detail: "Highlight ayat, hadits, dan poin utama dalam format singkat & detail.",
+    detail:
+      "Highlight ayat, hadits, dan poin utama dalam format singkat & detail.",
   },
   {
     title: "Quiz & gamifikasi",
-    detail: "Format beragam dengan skor, progres, dan pengalaman belajar fun.",
+    detail:
+      "Format beragam dengan skor, progres, dan pengalaman belajar fun.",
   },
   {
     title: "Mindmap interaktif",
-    detail: "Jelajahi sub-topik secara visual untuk retensi lebih baik.",
+    detail:
+      "Jelajahi sub-topik secara visual untuk retensi lebih baik.",
   },
   {
     title: "Pencarian & filter",
-    detail: "Cari berdasarkan tema, ustadz, durasi, atau tingkat kesulitan.",
+    detail:
+      "Cari berdasarkan tema, ustadz, durasi, atau tingkat kesulitan.",
   },
   {
     title: "Personalization",
-    detail: "Favorit, mode terang/gelap, dan download materi teks offline.",
+    detail:
+      "Favorit, mode terang/gelap, dan download materi teks offline.",
   },
   {
     title: "Progress tracking",
-    detail: "Dashboard pribadi dengan riwayat kajian, quiz score, dan tren belajar.",
+    detail:
+      "Dashboard pribadi dengan riwayat kajian, quiz score, dan tren belajar.",
   },
 ];
 
@@ -123,9 +146,10 @@ export default function Home() {
             dengan AI.
           </h1>
           <p className="max-w-3xl text-lg text-white/70">
-            Platform belajar web yang mengubah ceramah panjang menjadi transcript akurat, ringkasan,
-            quiz seru, mindmap interaktif, dan dashboard progres. Fokus pada pemahaman, bukan
-            sekadar menonton.
+            Platform belajar web yang mengubah ceramah panjang menjadi
+            transcript akurat, ringkasan, quiz seru, mindmap
+            interaktif, dan dashboard progres. Fokus pada pemahaman,
+            bukan sekadar menonton.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button asChild size="lg" className="shadow-brand">
@@ -134,16 +158,27 @@ export default function Home() {
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild variant="secondary" size="lg" className="bg-white/10 text-white hover:bg-white/20">
+            <Button
+              asChild
+              variant="secondary"
+              size="lg"
+              className="bg-white/10 text-white hover:bg-white/20"
+            >
               <Link href="/signup">Buat akun gratis</Link>
             </Button>
-            <Button asChild variant="ghost" size="lg" className="text-white hover:bg-white/10">
+            <Button
+              asChild
+              variant="ghost"
+              size="lg"
+              className="text-white hover:bg-white/10"
+            >
               <Link href="/mermaid">Lihat mindmap sample</Link>
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
-              <Search className="h-4 w-4" /> Cari kajian: tema, ustadz, durasi
+              <Search className="h-4 w-4" /> Cari kajian: tema,
+              ustadz, durasi
             </div>
             <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
               <Moon className="h-4 w-4" /> Mode terang/gelap siap
@@ -154,10 +189,17 @@ export default function Home() {
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             {stats.map((item) => (
-              <Card key={item.label} className="border-white/10 bg-white/5 text-white">
+              <Card
+                key={item.label}
+                className="border-white/10 bg-white/5 text-white"
+              >
                 <CardContent className="p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/60">{item.label}</p>
-                  <p className="mt-2 text-2xl font-bold">{item.value}</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/60">
+                    {item.label}
+                  </p>
+                  <p className="mt-2 text-2xl font-bold">
+                    {item.value}
+                  </p>
                 </CardContent>
               </Card>
             ))}
@@ -168,8 +210,12 @@ export default function Home() {
           <div className="relative rounded-[28px] border border-white/10 bg-gradient-to-b from-white/10 via-white/5 to-white/10 p-6 shadow-2xl backdrop-blur">
             <div className="mb-4 flex items-center justify-between rounded-2xl bg-white/5 p-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-emerald-200">AI Flow</p>
-                <p className="text-lg font-semibold text-white">Kajian → Transcript → Quiz → Mindmap</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-emerald-200">
+                  AI Flow
+                </p>
+                <p className="text-lg font-semibold text-white">
+                  Kajian → Transcript → Quiz → Mindmap
+                </p>
               </div>
               <Wand2 className="h-8 w-8 text-emerald-300" />
             </div>
@@ -187,9 +233,13 @@ export default function Home() {
                       <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60">
                         {item.badge}
                       </span>
-                      <p className="text-sm font-semibold text-white">{item.title}</p>
+                      <p className="text-sm font-semibold text-white">
+                        {item.title}
+                      </p>
                     </div>
-                    <p className="text-sm text-white/70">{item.description}</p>
+                    <p className="text-sm text-white/70">
+                      {item.description}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -201,13 +251,19 @@ export default function Home() {
       <section className="container relative space-y-6 pb-16">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold text-emerald-200">Fitur unggulan</p>
-            <h2 className="text-3xl font-bold text-white">Belajar mendalam, seru, dan terstruktur</h2>
+            <p className="text-sm font-semibold text-emerald-200">
+              Fitur unggulan
+            </p>
+            <h2 className="text-3xl font-bold text-white">
+              Belajar mendalam, seru, dan terstruktur
+            </h2>
           </div>
-          <Button asChild variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10">
-            <Link href="/health">
-              Cek health server
-            </Link>
+          <Button
+            asChild
+            variant="outline"
+            className="border-white/20 bg-white/5 text-white hover:bg-white/10"
+          >
+            <Link href="/health">Cek health server</Link>
           </Button>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -218,7 +274,9 @@ export default function Home() {
             >
               <CardHeader>
                 <CardTitle>{feature.title}</CardTitle>
-                <CardDescription className="text-white/70">{feature.detail}</CardDescription>
+                <CardDescription className="text-white/70">
+                  {feature.detail}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-emerald-200">
@@ -234,8 +292,12 @@ export default function Home() {
       <section className="container relative space-y-6 pb-20">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-emerald-200">Pilihan populer</p>
-            <h3 className="text-2xl font-bold text-white">Track kajian yang sudah diolah AI</h3>
+            <p className="text-sm font-semibold text-emerald-200">
+              Pilihan populer
+            </p>
+            <h3 className="text-2xl font-bold text-white">
+              Track kajian yang sudah diolah AI
+            </h3>
           </div>
           <div className="flex items-center gap-2 rounded-full bg-white/5 px-3 py-2 text-xs text-white/70">
             <span className="h-2 w-2 rounded-full bg-emerald-300" />
@@ -249,10 +311,16 @@ export default function Home() {
               className="overflow-hidden border-none bg-gradient-to-br text-white shadow-lg transition hover:-translate-y-1"
               style={{ backgroundImage: undefined }}
             >
-              <div className={`h-36 w-full rounded-b-[32px] bg-gradient-to-br ${track.color} opacity-90`} />
+              <div
+                className={`h-36 w-full rounded-b-[32px] bg-gradient-to-br ${track.color} opacity-90`}
+              />
               <CardHeader className="-mt-12">
-                <CardTitle className="text-xl">{track.title}</CardTitle>
-                <CardDescription className="text-white/80">{track.meta}</CardDescription>
+                <CardTitle className="text-xl">
+                  {track.title}
+                </CardTitle>
+                <CardDescription className="text-white/80">
+                  {track.meta}
+                </CardDescription>
               </CardHeader>
               <CardContent className="flex items-center justify-between text-sm text-white/70">
                 <div className="flex items-center gap-2">

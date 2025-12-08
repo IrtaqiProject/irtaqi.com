@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAtom } from "jotai";
 import { useSession } from "next-auth/react";
 import {
@@ -17,10 +17,10 @@ import {
   XCircle,
 } from "lucide-react";
 
-import { generateQuizAction } from "@/actions/transcription";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StepLayout } from "@/components/step-layout";
+import { streamFeature } from "@/lib/feature-stream-client";
 import { cn } from "@/lib/utils";
 import {
   quizErrorAtom,
@@ -104,6 +104,7 @@ export default function QuizPage() {
   const [score, setScore] = useAtom(scoreAtom);
   const [showResults, setShowResults] = useAtom(showResultsAtom);
   const [validation, setValidation] = useAtom(validationAtom);
+  const [streamingText, setStreamingText] = useState("");
 
   const transcriptReady = Boolean(transcriptResult?.transcript);
   const normalizedQuestions = normalizeQuestions(quizResult?.questions ?? []);
@@ -175,15 +176,23 @@ export default function QuizPage() {
     setShowResults(false);
     setScore(0);
     setValidation("");
+    setStreamingText("");
     try {
-      const data = await generateQuizAction({
-        transcript: transcriptResult.transcript,
-        prompt,
-        youtubeUrl: transcriptResult.youtubeUrl,
-        videoId: transcriptResult.videoId,
-        transcriptId: transcriptResult.id,
-        durationSeconds: transcriptResult.durationSeconds ?? null,
-      });
+      const data = await streamFeature(
+        "quiz",
+        {
+          transcript: transcriptResult.transcript,
+          prompt,
+          youtubeUrl: transcriptResult.youtubeUrl,
+          videoId: transcriptResult.videoId,
+          transcriptId: transcriptResult.id,
+          durationSeconds: transcriptResult.durationSeconds ?? null,
+        },
+        {
+          onToken: (token) =>
+            setStreamingText((prev) => (prev ? `${prev}${token}` : token)),
+        },
+      );
       const questions = data.quiz?.questions ?? [];
       const meta = data.quiz?.meta ?? {};
       setQuizResult({
@@ -196,6 +205,7 @@ export default function QuizPage() {
       });
     } catch (err) {
       setQuizError(err instanceof Error ? err.message : "Gagal membuat quiz");
+      setStreamingText("");
     } finally {
       setQuizLoading(false);
     }
@@ -280,6 +290,14 @@ export default function QuizPage() {
                 />
               </label>
               {quizError ? <p className="text-sm text-amber-300">{quizError}</p> : null}
+              {(quizLoading || streamingText) && (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/80">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">Streaming token</p>
+                  <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap text-white/80">
+                    {streamingText || "Menunggu token..."}
+                  </pre>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"

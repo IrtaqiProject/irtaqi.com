@@ -195,3 +195,46 @@ export async function generateQuizAction(input) {
 
   return { quiz, model, durationSeconds: durationSeconds ?? null };
 }
+
+// Jalankan ringkasan, Q&A, dan mindmap secara paralel untuk hemat waktu.
+export async function generateInsightsAction(input) {
+  const parsed = featureBaseSchema.safeParse(input ?? {});
+  if (!parsed.success) throw new Error("Input tidak valid untuk insights");
+
+  const {
+    transcript,
+    prompt,
+    videoId,
+    youtubeUrl,
+    durationSeconds,
+    transcriptId,
+  } = parsed.data;
+
+  const ensuredTranscriptId = requireTranscriptId(transcriptId);
+  const commonOptions = {
+    prompt,
+    videoTitle: resolveVideoTitle(videoId, youtubeUrl),
+    durationSeconds: durationSeconds ?? null,
+  };
+
+  const [summaryResult, qaResult, mindmapResult] = await Promise.all([
+    generateSummaryFromTranscript(transcript, commonOptions),
+    generateQaFromTranscript(transcript, commonOptions),
+    generateMindmapFromTranscript(transcript, commonOptions),
+  ]);
+
+  const summary = summaryResult?.summary ?? null;
+  const qa = qaResult?.qa ?? null;
+  const mindmap = mindmapResult?.mindmap ?? null;
+  const model =
+    summaryResult?.model ?? qaResult?.model ?? mindmapResult?.model ?? null;
+
+  await persistFeatures(ensuredTranscriptId, {
+    summary,
+    qa,
+    mindmap,
+    model,
+  });
+
+  return { summary, qa, mindmap, model };
+}

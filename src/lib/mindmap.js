@@ -1,6 +1,17 @@
 export function sanitizeText(value, fallback = "") {
-  const clean = (value ?? "").toString().replace(/\s+/g, " ").replace(/["<>]/g, "").trim();
-  return clean || fallback;
+  const collapsed = (value ?? "")
+    .toString()
+    .replace(/\s+/g, " ")
+    .replace(/["<>]/g, "")
+    .trim();
+
+  // Mermaids mindmap parser gagal bila label diawali bullet (-, *, •, angka).
+  const withoutBullets = collapsed
+    .replace(/^[\-\u2013\u2014\u2022\u2023\u25E6\u2043\*\+•●○◦·]+\s*/, "")
+    .replace(/^\d+[\.\)\:]\s*/, "")
+    .trim();
+
+  return (withoutBullets || collapsed || fallback).trim();
 }
 
 export function buildMindmapChart(nodes = [], title = "Peta Pikiran") {

@@ -4,13 +4,13 @@ import { useAtom } from "jotai";
 import Link from "next/link";
 import { Loader2, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
-import { generateQaAction } from "@/actions/transcription";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StepLayout } from "@/components/step-layout";
+import { streamFeature } from "@/lib/feature-stream-client";
 import { cn } from "@/lib/utils";
 import {
   qaErrorAtom,
@@ -28,6 +28,7 @@ export default function QaPage() {
   const [qaResult, setQaResult] = useAtom(qaResultAtom);
   const [loading, setLoading] = useAtom(qaLoadingAtom);
   const [error, setError] = useAtom(qaErrorAtom);
+  const [streamingText, setStreamingText] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -60,19 +61,28 @@ export default function QaPage() {
       return;
     }
     setLoading(true);
+    setStreamingText("");
     setError("");
     try {
-      const data = await generateQaAction({
-        transcript: transcriptResult.transcript,
-        prompt,
-        youtubeUrl: transcriptResult.youtubeUrl,
-        videoId: transcriptResult.videoId,
-        transcriptId: transcriptResult.id,
-        durationSeconds: transcriptResult.durationSeconds ?? null,
-      });
+      const data = await streamFeature(
+        "qa",
+        {
+          transcript: transcriptResult.transcript,
+          prompt,
+          youtubeUrl: transcriptResult.youtubeUrl,
+          videoId: transcriptResult.videoId,
+          transcriptId: transcriptResult.id,
+          durationSeconds: transcriptResult.durationSeconds ?? null,
+        },
+        {
+          onToken: (token) =>
+            setStreamingText((prev) => (prev ? `${prev}${token}` : token)),
+        },
+      );
       setQaResult({ sample_questions: data.qa?.sample_questions ?? [], model: data.model });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal membuat Q&A");
+      setStreamingText("");
     } finally {
       setLoading(false);
     }
@@ -126,6 +136,14 @@ export default function QaPage() {
                 />
               </label>
               {error ? <p className="text-sm text-amber-300">{error}</p> : null}
+              {(loading || streamingText) && (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/80">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">Streaming token</p>
+                  <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap text-white/80">
+                    {streamingText || "Menunggu token..."}
+                  </pre>
+                </div>
+              )}
               <Button
                 type="button"
                 disabled={loading}

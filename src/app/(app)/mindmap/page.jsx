@@ -4,10 +4,9 @@ import { useAtom } from "jotai";
 import Link from "next/link";
 import { GitBranch, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
-import { generateMindmapAction } from "@/actions/transcription";
 import { MindmapCanvas } from "@/components/mindmap-canvas";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { StepLayout } from "@/components/step-layout";
+import { streamFeature } from "@/lib/feature-stream-client";
 import { cn } from "@/lib/utils";
 import { buildMindmapChart } from "@/lib/mindmap";
 import {
@@ -39,6 +39,7 @@ export default function MindmapPage() {
   const [chart, setChart] = useAtom(mindmapChartAtom);
   const [loading, setLoading] = useAtom(mindmapLoadingAtom);
   const [error, setError] = useAtom(mindmapErrorAtom);
+  const [streamingText, setStreamingText] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -87,23 +88,32 @@ export default function MindmapPage() {
       return;
     }
     setLoading(true);
+    setStreamingText("");
     setError("");
     setChart("");
     try {
-      const data = await generateMindmapAction({
-        transcript: transcriptResult.transcript,
-        prompt,
-        youtubeUrl: transcriptResult.youtubeUrl,
-        videoId: transcriptResult.videoId,
-        transcriptId: transcriptResult.id,
-        durationSeconds: transcriptResult.durationSeconds ?? null,
-      });
+      const data = await streamFeature(
+        "mindmap",
+        {
+          transcript: transcriptResult.transcript,
+          prompt,
+          youtubeUrl: transcriptResult.youtubeUrl,
+          videoId: transcriptResult.videoId,
+          transcriptId: transcriptResult.id,
+          durationSeconds: transcriptResult.durationSeconds ?? null,
+        },
+        {
+          onToken: (token) =>
+            setStreamingText((prev) => (prev ? `${prev}${token}` : token)),
+        },
+      );
       setMindmapResult({ ...data.mindmap, model: data.model });
       renderChart(data.mindmap?.nodes ?? [], data.mindmap?.title);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Gagal membuat mindmap"
       );
+      setStreamingText("");
     } finally {
       setLoading(false);
     }
@@ -167,6 +177,14 @@ export default function MindmapPage() {
               {error ? (
                 <p className="text-sm text-amber-300">{error}</p>
               ) : null}
+              {(loading || streamingText) && (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/80">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">Streaming token</p>
+                  <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap text-white/80">
+                    {streamingText || "Menunggu token..."}
+                  </pre>
+                </div>
+              )}
               <Button
                 type="button"
                 disabled={loading}
