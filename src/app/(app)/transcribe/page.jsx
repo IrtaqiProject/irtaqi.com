@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 
 import { processYoutubeTranscriptionAction } from "@/actions/transcription";
+import { ProgressBar } from "@/components/progress-bar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,6 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { StepLayout } from "@/components/step-layout";
+import { useFeatureProgress } from "@/lib/use-progress";
 import { cn } from "@/lib/utils";
 import {
   errorAtom,
@@ -36,7 +38,26 @@ import {
   summaryResultAtom,
   transcriptResultAtom,
   youtubeAtom,
+  mindmapProgressAtom,
+  quizProgressAtom,
+  summaryProgressAtom,
+  transcribeProgressAtom,
+  qaProgressAtom,
 } from "@/state/transcribe-atoms";
+
+function extractVideoIdFromUrl(input) {
+  if (!input) return null;
+  const trimmed = input.trim();
+  const urlIdMatch = trimmed.match(/[?&]v=([^&#]+)/)?.[1];
+  const shortMatch = trimmed.match(/youtu\.be\/([^?]+)/)?.[1];
+  const embedMatch = trimmed.match(
+    /youtube\.com\/embed\/([^?]+)/
+  )?.[1];
+  const plainIdMatch = trimmed.match(/^[a-zA-Z0-9_-]{11}$/)?.[0];
+  return (
+    urlIdMatch ?? shortMatch ?? embedMatch ?? plainIdMatch ?? null
+  );
+}
 
 export default function TranscribePage() {
   const { status } = useSession();
@@ -46,6 +67,9 @@ export default function TranscribePage() {
   const [loading, setLoading] = useAtom(loadingAtom);
   const [result, setResult] = useAtom(transcriptResultAtom);
   const [error, setError] = useAtom(errorAtom);
+  const [transcribeProgress, setTranscribeProgress] = useAtom(
+    transcribeProgressAtom
+  );
   const [, setSummaryResult] = useAtom(summaryResultAtom);
   const [, setQaResult] = useAtom(qaResultAtom);
   const [, setMindmapResult] = useAtom(mindmapResultAtom);
@@ -59,6 +83,13 @@ export default function TranscribePage() {
   const [, setSummaryLoading] = useAtom(summaryLoadingAtom);
   const [, setQaLoading] = useAtom(qaLoadingAtom);
   const [, setQuizLoading] = useAtom(quizLoadingAtom);
+  const [, setSummaryProgress] = useAtom(summaryProgressAtom);
+  const [, setQaProgress] = useAtom(qaProgressAtom);
+  const [, setMindmapProgress] = useAtom(mindmapProgressAtom);
+  const [, setQuizProgress] = useAtom(quizProgressAtom);
+  const transcribeProgressCtrl = useFeatureProgress(
+    setTranscribeProgress
+  );
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -90,16 +121,20 @@ export default function TranscribePage() {
     setSummaryResult(null);
     setSummaryError("");
     setSummaryLoading(false);
+    setSummaryProgress(0);
     setQaResult(null);
     setQaError("");
     setQaLoading(false);
+    setQaProgress(0);
     setMindmapResult(null);
     setMindmapError("");
     setMindmapChart("");
     setMindmapLoading(false);
+    setMindmapProgress(0);
     setQuizResult(null);
     setQuizError("");
     setQuizLoading(false);
+    setQuizProgress(0);
   };
 
   const onSubmit = async (e) => {
@@ -108,17 +143,20 @@ export default function TranscribePage() {
     setError("");
     setResult(null);
     resetFeatureStates();
+    transcribeProgressCtrl.start();
     try {
       const data = await processYoutubeTranscriptionAction({
         youtubeUrl,
       });
       setResult(data);
+      transcribeProgressCtrl.complete();
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
           : "Gagal memproses transcript"
       );
+      transcribeProgressCtrl.fail();
     } finally {
       setLoading(false);
     }
@@ -126,11 +164,17 @@ export default function TranscribePage() {
 
   const transcriptText = result?.transcript ?? "";
   const srtText = result?.srt ?? "";
+  const derivedVideoId = extractVideoIdFromUrl(youtubeUrl);
+  const activeVideoId = derivedVideoId ?? result?.videoId ?? null;
+  const embedUrl = activeVideoId
+    ? `https://www.youtube.com/embed/${activeVideoId}`
+    : null;
+  const previewUrlText = youtubeUrl || result?.youtubeUrl || "";
 
   return (
     <StepLayout
       activeKey="transcribe"
-      title="“Ubah Video Youtubemu yang panjang jadi teks hanya dengan satu klik!"
+      title="Ubah Video Youtubemu yang panjang jadi teks hanya dengan satu klik!"
       subtitle="Cukup klik Transcribe dan biarkan kami menuliskannya untuk Anda. Mudah, cepat, dan bikin hidup lebih simpel."
     >
       <Card className="border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur">
@@ -174,7 +218,43 @@ export default function TranscribePage() {
               )}
               Buat Transcribe
             </Button>
+            {transcribeProgress > 0 ? (
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <ProgressBar
+                  value={transcribeProgress}
+                  label="Mentranskrip video"
+                />
+                <p className="mt-2 text-xs text-white/60">
+                  Mengambil transcript YouTube dan menyiapkan SRT.
+                </p>
+              </div>
+            ) : null}
           </form>
+
+          {embedUrl ? (
+            <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <p className="text-sm font-semibold text-white">
+                  Preview video
+                </p>
+                <p className="text-xs text-white/60">
+                  {previewUrlText || "Masukkan URL YouTube"}
+                </p>
+              </div>
+              <div className="aspect-video w-full bg-black/30">
+                <iframe
+                  key={activeVideoId}
+                  src={`${embedUrl}?rel=0`}
+                  title="Preview video YouTube"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  loading="lazy"
+                  className="h-full w-full"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
+              </div>
+            </div>
+          ) : null}
 
           {result ? (
             <div className="mt-6 space-y-4">

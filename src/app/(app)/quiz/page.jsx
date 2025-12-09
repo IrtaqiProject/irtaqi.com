@@ -17,6 +17,7 @@ import {
   XCircle,
 } from "lucide-react";
 
+import { ProgressBar } from "@/components/progress-bar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,10 +28,12 @@ import {
 } from "@/components/ui/card";
 import { StepLayout } from "@/components/step-layout";
 import { streamFeature } from "@/lib/feature-stream-client";
+import { useFeatureProgress } from "@/lib/use-progress";
 import { cn } from "@/lib/utils";
 import {
   quizErrorAtom,
   quizLoadingAtom,
+  quizProgressAtom,
   quizPromptAtom,
   quizResultAtom,
   transcriptResultAtom,
@@ -119,6 +122,7 @@ export default function QuizPage() {
   const [prompt, setPrompt] = useAtom(quizPromptAtom);
   const [quizLoading, setQuizLoading] = useAtom(quizLoadingAtom);
   const [quizError, setQuizError] = useAtom(quizErrorAtom);
+  const [quizProgress, setQuizProgress] = useAtom(quizProgressAtom);
   const [currentIndex, setCurrentIndex] = useAtom(currentIndexAtom);
   const [selections, setSelections] = useAtom(selectionsAtom);
   const [revealed, setRevealed] = useAtom(revealedAtom);
@@ -126,6 +130,7 @@ export default function QuizPage() {
   const [showResults, setShowResults] = useAtom(showResultsAtom);
   const [validation, setValidation] = useAtom(validationAtom);
   const [streamingText, setStreamingText] = useState("");
+  const quizProgressCtrl = useFeatureProgress(setQuizProgress);
 
   const transcriptReady = Boolean(transcriptResult?.transcript);
   const normalizedQuestions = normalizeQuestions(
@@ -228,6 +233,8 @@ export default function QuizPage() {
     setScore(0);
     setValidation("");
     setStreamingText("");
+    quizProgressCtrl.start();
+    let tokenCount = 0;
     try {
       const data = await streamFeature(
         "quiz",
@@ -240,10 +247,15 @@ export default function QuizPage() {
           durationSeconds: transcriptResult.durationSeconds ?? null,
         },
         {
-          onToken: (token) =>
+          onToken: (token) => {
+            tokenCount += 1;
+            quizProgressCtrl.bump(
+              Math.min(96, 16 + tokenCount * 2)
+            );
             setStreamingText((prev) =>
               prev ? `${prev}${token}` : token
-            ),
+            );
+          },
         }
       );
       const questions = data.quiz?.questions ?? [];
@@ -260,11 +272,13 @@ export default function QuizPage() {
           meta.duration_seconds ??
           null,
       });
+      quizProgressCtrl.complete();
     } catch (err) {
       setQuizError(
         err instanceof Error ? err.message : "Gagal membuat quiz"
       );
       setStreamingText("");
+      quizProgressCtrl.fail();
     } finally {
       setQuizLoading(false);
     }
@@ -368,6 +382,18 @@ export default function QuizPage() {
               </label>
               {quizError ? (
                 <p className="text-sm text-amber-300">{quizError}</p>
+              ) : null}
+              {quizProgress > 0 ? (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <ProgressBar
+                    value={quizProgress}
+                    label="Membangun soal"
+                  />
+                  <p className="mt-2 text-xs text-white/60">
+                    Mengonversi transcript menjadi kumpulan soal dan
+                    opsi jawaban.
+                  </p>
+                </div>
               ) : null}
               {(quizLoading || streamingText) && (
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/80">

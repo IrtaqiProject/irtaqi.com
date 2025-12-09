@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
 import { MindmapCanvas } from "@/components/mindmap-canvas";
+import { ProgressBar } from "@/components/progress-bar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,11 +19,13 @@ import {
 } from "@/components/ui/card";
 import { StepLayout } from "@/components/step-layout";
 import { streamFeature } from "@/lib/feature-stream-client";
+import { useFeatureProgress } from "@/lib/use-progress";
 import { cn } from "@/lib/utils";
 import { buildMindmapChart } from "@/lib/mindmap";
 import {
   mindmapChartAtom,
   mindmapErrorAtom,
+  mindmapProgressAtom,
   mindmapLoadingAtom,
   mindmapPromptAtom,
   mindmapResultAtom,
@@ -39,7 +42,11 @@ export default function MindmapPage() {
   const [chart, setChart] = useAtom(mindmapChartAtom);
   const [loading, setLoading] = useAtom(mindmapLoadingAtom);
   const [error, setError] = useAtom(mindmapErrorAtom);
+  const [mindmapProgress, setMindmapProgress] = useAtom(
+    mindmapProgressAtom
+  );
   const [streamingText, setStreamingText] = useState("");
+  const mindmapProgressCtrl = useFeatureProgress(setMindmapProgress);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -91,6 +98,8 @@ export default function MindmapPage() {
     setStreamingText("");
     setError("");
     setChart("");
+    mindmapProgressCtrl.start();
+    let tokenCount = 0;
     try {
       const data = await streamFeature(
         "mindmap",
@@ -103,19 +112,26 @@ export default function MindmapPage() {
           durationSeconds: transcriptResult.durationSeconds ?? null,
         },
         {
-          onToken: (token) =>
+          onToken: (token) => {
+            tokenCount += 1;
+            mindmapProgressCtrl.bump(
+              Math.min(96, 18 + tokenCount * 2)
+            );
             setStreamingText((prev) =>
               prev ? `${prev}${token}` : token
-            ),
+            );
+          },
         }
       );
       setMindmapResult({ ...data.mindmap, model: data.model });
       renderChart(data.mindmap?.nodes ?? [], data.mindmap?.title);
+      mindmapProgressCtrl.complete();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Gagal membuat mindmap"
       );
       setStreamingText("");
+      mindmapProgressCtrl.fail();
     } finally {
       setLoading(false);
     }
@@ -178,6 +194,18 @@ export default function MindmapPage() {
               </label>
               {error ? (
                 <p className="text-sm text-amber-300">{error}</p>
+              ) : null}
+              {mindmapProgress > 0 ? (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <ProgressBar
+                    value={mindmapProgress}
+                    label="Membangun mindmap"
+                  />
+                  <p className="mt-2 text-xs text-white/60">
+                    Menyusun node hierarkis dan outline dari
+                    transcript.
+                  </p>
+                </div>
               ) : null}
               {(loading || streamingText) && (
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/80">

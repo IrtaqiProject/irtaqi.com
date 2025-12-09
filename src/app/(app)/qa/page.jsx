@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
+import { ProgressBar } from "@/components/progress-bar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,10 +18,12 @@ import {
 } from "@/components/ui/card";
 import { StepLayout } from "@/components/step-layout";
 import { streamFeature } from "@/lib/feature-stream-client";
+import { useFeatureProgress } from "@/lib/use-progress";
 import { cn } from "@/lib/utils";
 import {
   qaErrorAtom,
   qaLoadingAtom,
+  qaProgressAtom,
   qaPromptAtom,
   qaResultAtom,
   transcriptResultAtom,
@@ -34,7 +37,9 @@ export default function QaPage() {
   const [qaResult, setQaResult] = useAtom(qaResultAtom);
   const [loading, setLoading] = useAtom(qaLoadingAtom);
   const [error, setError] = useAtom(qaErrorAtom);
+  const [qaProgress, setQaProgress] = useAtom(qaProgressAtom);
   const [streamingText, setStreamingText] = useState("");
+  const qaProgressCtrl = useFeatureProgress(setQaProgress);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -71,6 +76,8 @@ export default function QaPage() {
     setLoading(true);
     setStreamingText("");
     setError("");
+    qaProgressCtrl.start();
+    let tokenCount = 0;
     try {
       const data = await streamFeature(
         "qa",
@@ -83,21 +90,26 @@ export default function QaPage() {
           durationSeconds: transcriptResult.durationSeconds ?? null,
         },
         {
-          onToken: (token) =>
+          onToken: (token) => {
+            tokenCount += 1;
+            qaProgressCtrl.bump(Math.min(96, 18 + tokenCount * 2));
             setStreamingText((prev) =>
               prev ? `${prev}${token}` : token
-            ),
+            );
+          },
         }
       );
       setQaResult({
         sample_questions: data.qa?.sample_questions ?? [],
         model: data.model,
       });
+      qaProgressCtrl.complete();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Gagal membuat Q&A"
       );
       setStreamingText("");
+      qaProgressCtrl.fail();
     } finally {
       setLoading(false);
     }
@@ -161,6 +173,17 @@ export default function QaPage() {
               </label>
               {error ? (
                 <p className="text-sm text-amber-300">{error}</p>
+              ) : null}
+              {qaProgress > 0 ? (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <ProgressBar
+                    value={qaProgress}
+                    label="Menyusun Q&A"
+                  />
+                  <p className="mt-2 text-xs text-white/60">
+                    Memecah transcript jadi pertanyaan dan jawaban.
+                  </p>
+                </div>
               ) : null}
               {(loading || streamingText) && (
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/80">

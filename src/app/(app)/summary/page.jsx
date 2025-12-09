@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
+import { ProgressBar } from "@/components/progress-bar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,10 +18,12 @@ import {
 } from "@/components/ui/card";
 import { StepLayout } from "@/components/step-layout";
 import { streamFeature } from "@/lib/feature-stream-client";
+import { useFeatureProgress } from "@/lib/use-progress";
 import { cn } from "@/lib/utils";
 import {
   summaryErrorAtom,
   summaryLoadingAtom,
+  summaryProgressAtom,
   summaryPromptAtom,
   summaryResultAtom,
   transcriptResultAtom,
@@ -35,7 +38,11 @@ export default function SummaryPage() {
     useAtom(summaryResultAtom);
   const [loading, setLoading] = useAtom(summaryLoadingAtom);
   const [error, setError] = useAtom(summaryErrorAtom);
+  const [summaryProgress, setSummaryProgress] = useAtom(
+    summaryProgressAtom
+  );
   const [streamingText, setStreamingText] = useState("");
+  const summaryProgressCtrl = useFeatureProgress(setSummaryProgress);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -72,6 +79,8 @@ export default function SummaryPage() {
     setLoading(true);
     setStreamingText("");
     setError("");
+    summaryProgressCtrl.start();
+    let tokenCount = 0;
     try {
       const data = await streamFeature(
         "summary",
@@ -84,18 +93,25 @@ export default function SummaryPage() {
           durationSeconds: transcriptResult.durationSeconds ?? null,
         },
         {
-          onToken: (token) =>
+          onToken: (token) => {
+            tokenCount += 1;
+            summaryProgressCtrl.bump(
+              Math.min(96, 20 + tokenCount * 2)
+            );
             setStreamingText((prev) =>
               prev ? `${prev}${token}` : token
-            ),
+            );
+          },
         }
       );
       setSummaryResult({ ...data.summary, model: data.model });
+      summaryProgressCtrl.complete();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Gagal membuat ringkasan"
       );
       setStreamingText("");
+      summaryProgressCtrl.fail();
     } finally {
       setLoading(false);
     }
@@ -160,6 +176,18 @@ export default function SummaryPage() {
               </label>
               {error ? (
                 <p className="text-sm text-amber-300">{error}</p>
+              ) : null}
+              {summaryProgress > 0 ? (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <ProgressBar
+                    value={summaryProgress}
+                    label="Membuat ringkasan"
+                  />
+                  <p className="mt-2 text-xs text-white/60">
+                    Mengambil konteks transcript dan menyusun bullet
+                    points.
+                  </p>
+                </div>
               ) : null}
               {(loading || streamingText) && (
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/80">
