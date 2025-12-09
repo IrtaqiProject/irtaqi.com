@@ -8,7 +8,13 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { StepLayout } from "@/components/step-layout";
 import { streamFeature } from "@/lib/feature-stream-client";
 import { cn } from "@/lib/utils";
@@ -47,7 +53,9 @@ export default function QaPage() {
   if (status === "unauthenticated") {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#1b1145] via-[#130d32] to-[#0b0820] text-white">
-        <p className="text-sm text-white/70">Mengalihkan ke halaman login...</p>
+        <p className="text-sm text-white/70">
+          Mengalihkan ke halaman login...
+        </p>
       </main>
     );
   }
@@ -76,12 +84,19 @@ export default function QaPage() {
         },
         {
           onToken: (token) =>
-            setStreamingText((prev) => (prev ? `${prev}${token}` : token)),
-        },
+            setStreamingText((prev) =>
+              prev ? `${prev}${token}` : token
+            ),
+        }
       );
-      setQaResult({ sample_questions: data.qa?.sample_questions ?? [], model: data.model });
+      setQaResult({
+        sample_questions: data.qa?.sample_questions ?? [],
+        model: data.model,
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal membuat Q&A");
+      setError(
+        err instanceof Error ? err.message : "Gagal membuat Q&A"
+      );
       setStreamingText("");
     } finally {
       setLoading(false);
@@ -89,27 +104,34 @@ export default function QaPage() {
   };
 
   const durationSeconds = transcriptResult?.durationSeconds;
-  const metaText = durationSeconds ? `${Math.round(durationSeconds / 60)} menit` : "?";
+  const metaText = durationSeconds
+    ? `${Math.round(durationSeconds / 60)} menit`
+    : "?";
 
   return (
     <StepLayout
       activeKey="qa"
       title="Ingin gali materi lebih dalam? Gunakan Prompt Q&A kapan saja"
-      subtitle='Biarkan sistem menjawab pertanyaan Anda secara langsung dan terarah.'
+      subtitle="buat pemahamanmu lebih dalam dengan Q&A interaktif. Cukup masukkan prompt yang kamu mau, dan biarkan AI membantu menjawabnya berdasarkan transcript video yang sudah kamu proses sebelumnya."
     >
       {!transcriptReady ? (
         <Card className="border-white/10 bg-white/5 text-white">
           <CardHeader>
             <CardTitle>Transcript belum tersedia</CardTitle>
             <CardDescription className="text-white/75">
-              Proses &amp; simpan URL di langkah transcribe terlebih dahulu, lalu kembali ke sini.
+              Proses &amp; simpan URL di langkah transcribe terlebih
+              dahulu, lalu kembali ke sini.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
             <Button asChild>
               <Link href="/transcribe">Ke halaman transcribe</Link>
             </Button>
-            <Button variant="secondary" onClick={() => router.back()} className="bg-white/15 text-white">
+            <Button
+              variant="secondary"
+              onClick={() => router.back()}
+              className="bg-white/15 text-white"
+            >
               Kembali
             </Button>
           </CardContent>
@@ -120,8 +142,10 @@ export default function QaPage() {
             <CardHeader>
               <CardTitle>Tanya &amp; jawab</CardTitle>
               <CardDescription className="text-white/75">
-                Susun pertanyaan untuk belajar cepat atau membuat kuis kajian. Transcript:{" "}
-                {transcriptResult.videoId ?? "tidak dikenal"} · Durasi {metaText}
+                Susun pertanyaan untuk belajar cepat atau membuat kuis
+                kajian. Transcript:{" "}
+                {transcriptResult.videoId ?? "tidak dikenal"} · Durasi{" "}
+                {metaText}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -135,10 +159,14 @@ export default function QaPage() {
                   placeholder="Susun 5-10 tanya jawab yang merujuk pada dalil dan amalan."
                 />
               </label>
-              {error ? <p className="text-sm text-amber-300">{error}</p> : null}
+              {error ? (
+                <p className="text-sm text-amber-300">{error}</p>
+              ) : null}
               {(loading || streamingText) && (
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/80">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">Streaming token</p>
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">
+                    Streaming token
+                  </p>
                   <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap text-white/80">
                     {streamingText || "Menunggu token..."}
                   </pre>
@@ -149,10 +177,14 @@ export default function QaPage() {
                 disabled={loading}
                 onClick={handleGenerate}
                 className={cn(
-                  "w-full bg-gradient-to-r from-[#8b5cf6] via-[#7b71f3] to-[#4f46e5] text-white shadow-[0_10px_30px_rgba(124,92,255,0.45)]",
+                  "w-full bg-gradient-to-r from-[#8b5cf6] via-[#7b71f3] to-[#4f46e5] text-white shadow-[0_10px_30px_rgba(124,92,255,0.45)]"
                 )}
               >
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageCircle className="mr-2 h-4 w-4" />}
+                {loading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <MessageCircle className="mr-2 h-4 w-4" />
+                )}
                 Buat Q&amp;A
               </Button>
             </CardContent>
@@ -168,8 +200,13 @@ export default function QaPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {questions.map((item, idx) => (
-                  <div key={`${item.question}-${idx}`} className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm">
-                    <p className="font-semibold text-white">Q: {item.question}</p>
+                  <div
+                    key={`${item.question}-${idx}`}
+                    className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm"
+                  >
+                    <p className="font-semibold text-white">
+                      Q: {item.question}
+                    </p>
                     <p className="text-white/75">A: {item.answer}</p>
                   </div>
                 ))}

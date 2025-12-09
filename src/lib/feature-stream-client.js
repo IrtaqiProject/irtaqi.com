@@ -7,14 +7,8 @@ export async function streamFeature(feature, payload = {}, { onToken } = {}) {
   });
 
   if (!response.ok) {
-    let message = "Gagal memulai streaming.";
-    try {
-      const data = await response.json();
-      message = data?.error ?? message;
-    } catch {
-      const text = await response.text();
-      message = text || message;
-    }
+    const fallbackMessage = "Gagal memulai streaming.";
+    const message = (await response.text().catch(() => "")) || fallbackMessage;
     throw new Error(message);
   }
 

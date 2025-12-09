@@ -350,13 +350,13 @@ export async function POST(req) {
       durationSeconds: resolvedDurationSeconds,
     });
   } catch (err) {
+    const errorMessage =
+      err instanceof Error
+        ? err.message
+        : "Streaming gagal dimulai. Periksa konfigurasi OpenAI.";
+
     return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Streaming gagal dimulai. Periksa konfigurasi OpenAI.",
-      },
+      { error: errorMessage },
       { status: 500 }
     );
   }

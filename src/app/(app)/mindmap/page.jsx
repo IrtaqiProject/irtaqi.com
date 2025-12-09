@@ -104,8 +104,10 @@ export default function MindmapPage() {
         },
         {
           onToken: (token) =>
-            setStreamingText((prev) => (prev ? `${prev}${token}` : token)),
-        },
+            setStreamingText((prev) =>
+              prev ? `${prev}${token}` : token
+            ),
+        }
       );
       setMindmapResult({ ...data.mindmap, model: data.model });
       renderChart(data.mindmap?.nodes ?? [], data.mindmap?.title);
@@ -127,8 +129,8 @@ export default function MindmapPage() {
   return (
     <StepLayout
       activeKey="mindmap"
-      title="Visualisasikan struktur kajian dengan mindmap"
-      subtitle="Gunakan prompt mindmap untuk menyiapkan cabang utama, dalil, dan contoh."
+      title="Visualisasikan struktur kajian dengan mindmap interaktif"
+      subtitle="Cukup pakai prompt mindmap, cabang utama, dalil, dan contoh akan tersusun rapi otomatis. Mudah dilihat, enak dipahami."
     >
       {!transcriptReady ? (
         <Card className="border-white/10 bg-white/5 text-white">
@@ -179,7 +181,9 @@ export default function MindmapPage() {
               ) : null}
               {(loading || streamingText) && (
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/80">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">Streaming token</p>
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">
+                    Streaming token
+                  </p>
                   <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap text-white/80">
                     {streamingText || "Menunggu token..."}
                   </pre>

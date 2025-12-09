@@ -146,10 +146,11 @@ export default function Home() {
             dengan AI.
           </h1>
           <p className="max-w-3xl text-lg text-white/70">
-            Platform belajar web yang mengubah ceramah panjang menjadi
-            transcript akurat, ringkasan, quiz seru, mindmap
-            interaktif, dan dashboard progres. Fokus pada pemahaman,
-            bukan sekadar menonton.
+            Platform belajar web yang bikin satu ceramah panjang
+            langsung berubah jadi transcript rapi, ringkasan padat,
+            kuis seru, mindmap interaktif, dan dashboard progres yang
+            jelas. Bukan cuma nonton lewat, tapi benar-benar paham dan
+            bisa ngukur sejauh apa kamu berkembang.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button asChild size="lg" className="shadow-brand">
@@ -166,14 +167,14 @@ export default function Home() {
             >
               <Link href="/signup">Buat akun gratis</Link>
             </Button>
-            <Button
+            {/* <Button
               asChild
               variant="ghost"
               size="lg"
               className="text-white hover:bg-white/10"
             >
               <Link href="/mermaid">Lihat mindmap sample</Link>
-            </Button>
+            </Button> */}
           </div>
           <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">

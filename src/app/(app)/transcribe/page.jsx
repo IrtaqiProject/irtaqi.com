@@ -130,16 +130,16 @@ export default function TranscribePage() {
   return (
     <StepLayout
       activeKey="transcribe"
-      title="Mulai dengan transcript penuh"
-      subtitle="Ambil transcript dan SRT dari YouTube, lalu lanjutkan ke langkah berikutnya untuk olah ringkasan, Q&A, mindmap, dan quiz."
+      title="“Ubah Video Youtubemu yang panjang jadi teks hanya dengan satu klik!"
+      subtitle="Cukup klik Transcribe dan biarkan kami menuliskannya untuk Anda. Mudah, cepat, dan bikin hidup lebih simpel."
     >
       <Card className="border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur">
         <CardHeader>
           <CardTitle>Transcribe video</CardTitle>
           <CardDescription className="text-white/80">
-            Masukkan URL YouTube lalu tekan &quot;Proses &amp;
-            simpan&quot;. Transcript dan SRT lengkap akan tersimpan
-            dan siap dipakai di langkah berikutnya.
+            Masukkan URL YouTube lalu tekan &quot;Buat
+            Transcribe&quot;. Transcript dan SRT lengkap akan
+            tersimpan dan siap dipakai di langkah berikutnya.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -182,7 +182,7 @@ export default function TranscribePage() {
                 <p className="font-semibold text-emerald-200">
                   Transcript siap dipakai
                 </p>
-                <p className="text-white/80">
+                {/* <p className="text-white/80">
                   Disimpan dengan ID{" "}
                   <span className="font-mono">
                     {result.id ?? "–"}
@@ -192,7 +192,7 @@ export default function TranscribePage() {
                     ? ` (${result.lang.toUpperCase()})`
                     : ""}
                   .
-                </p>
+                </p> */}
                 <p className="mt-2 text-xs text-white/60">
                   {result.youtubeUrl}
                 </p>
@@ -233,10 +233,10 @@ export default function TranscribePage() {
               <Card className="border-white/10 bg-[#12122f]/70 text-white">
                 <CardHeader>
                   <CardTitle>Transcript &amp; SRT penuh</CardTitle>
-                  <CardDescription className="text-white/75">
+                  {/* <CardDescription className="text-white/75">
                     Konten lengkap ditampilkan tanpa pemotongan agar
                     mudah dicek dan disalin.
-                  </CardDescription>
+                  </CardDescription> */}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>

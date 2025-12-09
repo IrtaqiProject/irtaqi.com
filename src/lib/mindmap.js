@@ -2,16 +2,20 @@ export function sanitizeText(value, fallback = "") {
   const collapsed = (value ?? "")
     .toString()
     .replace(/\s+/g, " ")
-    .replace(/["<>]/g, "")
+    .trim();
+
+  // Hapus tanda kurung/bracket yang diperlakukan Mermaid sebagai token bentuk.
+  const safeChars = collapsed
+    .replace(/["<>()\[\]{}]/g, "")
     .trim();
 
   // Mermaids mindmap parser gagal bila label diawali bullet (-, *, •, angka).
-  const withoutBullets = collapsed
+  const withoutBullets = safeChars
     .replace(/^[\-\u2013\u2014\u2022\u2023\u25E6\u2043\*\+•●○◦·]+\s*/, "")
     .replace(/^\d+[\.\)\:]\s*/, "")
     .trim();
 
-  return (withoutBullets || collapsed || fallback).trim();
+  return (withoutBullets || safeChars || fallback).trim();
 }
 
 export function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
