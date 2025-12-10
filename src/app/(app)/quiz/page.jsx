@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAtom } from "jotai";
 import { useSession } from "next-auth/react";
 import {
@@ -17,14 +17,23 @@ import {
   XCircle,
 } from "lucide-react";
 
-import { generateQuizAction } from "@/actions/transcription";
+import { ProgressBar } from "@/components/progress-bar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { StepLayout } from "@/components/step-layout";
+import { streamFeature } from "@/lib/feature-stream-client";
+import { useFeatureProgress } from "@/lib/use-progress";
 import { cn } from "@/lib/utils";
 import {
   quizErrorAtom,
   quizLoadingAtom,
+  quizProgressAtom,
   quizPromptAtom,
   quizResultAtom,
   transcriptResultAtom,
@@ -40,16 +49,24 @@ import {
 
 function normalizeQuestions(questions = []) {
   return (questions ?? []).map((item, idx) => {
-    const rawOptions = Array.isArray(item?.options) ? item.options.filter(Boolean) : [];
+    const rawOptions = Array.isArray(item?.options)
+      ? item.options.filter(Boolean)
+      : [];
     const options = rawOptions.slice(0, 4);
     while (options.length < 4) {
-      options.push(`Pilihan ${String.fromCharCode(65 + options.length)}`);
+      options.push(
+        `Pilihan ${String.fromCharCode(65 + options.length)}`
+      );
     }
     let correctIndex =
-      typeof item?.correct_option_index === "number" && options[item.correct_option_index] !== undefined
+      typeof item?.correct_option_index === "number" &&
+      options[item.correct_option_index] !== undefined
         ? item.correct_option_index
-        : options.findIndex((opt) => opt?.trim() === item?.answer?.trim());
-    if (correctIndex < 0 || Number.isNaN(correctIndex)) correctIndex = 0;
+        : options.findIndex(
+            (opt) => opt?.trim() === item?.answer?.trim()
+          );
+    if (correctIndex < 0 || Number.isNaN(correctIndex))
+      correctIndex = 0;
 
     return {
       ...item,
@@ -60,10 +77,17 @@ function normalizeQuestions(questions = []) {
   });
 }
 
-function buildOptionClassName({ isSelected, isRevealed, showAsCorrect, showAsWrong }) {
+function buildOptionClassName({
+  isSelected,
+  isRevealed,
+  showAsCorrect,
+  showAsWrong,
+}) {
   const base =
     "flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm transition";
-  const selectionClass = isSelected ? "border-emerald-200/70 bg-emerald-500/15" : "border-white/10 bg-white/5";
+  const selectionClass = isSelected
+    ? "border-emerald-200/70 bg-emerald-500/15"
+    : "border-white/10 bg-white/5";
 
   let stateClass = "hover:border-white/20 hover:bg-white/10";
   if (isRevealed) {
@@ -98,29 +122,43 @@ export default function QuizPage() {
   const [prompt, setPrompt] = useAtom(quizPromptAtom);
   const [quizLoading, setQuizLoading] = useAtom(quizLoadingAtom);
   const [quizError, setQuizError] = useAtom(quizErrorAtom);
+  const [quizProgress, setQuizProgress] = useAtom(quizProgressAtom);
   const [currentIndex, setCurrentIndex] = useAtom(currentIndexAtom);
   const [selections, setSelections] = useAtom(selectionsAtom);
   const [revealed, setRevealed] = useAtom(revealedAtom);
   const [score, setScore] = useAtom(scoreAtom);
   const [showResults, setShowResults] = useAtom(showResultsAtom);
   const [validation, setValidation] = useAtom(validationAtom);
+  const [streamingText, setStreamingText] = useState("");
+  const quizProgressCtrl = useFeatureProgress(setQuizProgress);
 
   const transcriptReady = Boolean(transcriptResult?.transcript);
-  const normalizedQuestions = normalizeQuestions(quizResult?.questions ?? []);
-  const totalQuestions = quizResult?.meta?.total_questions ?? normalizedQuestions.length;
+  const normalizedQuestions = normalizeQuestions(
+    quizResult?.questions ?? []
+  );
+  const totalQuestions =
+    quizResult?.meta?.total_questions ?? normalizedQuestions.length;
   const answeredCount = Object.keys(selections).length;
-  const progress = totalQuestions ? Math.round((answeredCount / totalQuestions) * 100) : 0;
-  const accuracy = totalQuestions ? Math.round((score / totalQuestions) * 100) : 0;
+  const progress = totalQuestions
+    ? Math.round((answeredCount / totalQuestions) * 100)
+    : 0;
+  const accuracy = totalQuestions
+    ? Math.round((score / totalQuestions) * 100)
+    : 0;
   const currentQuestion = normalizedQuestions[currentIndex] ?? null;
   const allAnswered =
     normalizedQuestions.length > 0 &&
-    normalizedQuestions.every((_, idx) => selections[idx] !== undefined);
+    normalizedQuestions.every(
+      (_, idx) => selections[idx] !== undefined
+    );
   const durationSeconds =
     quizResult?.durationSeconds ??
     quizResult?.meta?.duration_seconds ??
     transcriptResult?.durationSeconds ??
     null;
-  const videoMinutes = durationSeconds ? Math.round(durationSeconds / 60) : null;
+  const videoMinutes = durationSeconds
+    ? Math.round(durationSeconds / 60)
+    : null;
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -135,16 +173,33 @@ export default function QuizPage() {
     setShowResults(false);
     setScore(0);
     setValidation("");
-  }, [quizResult?.questions, setCurrentIndex, setSelections, setRevealed, setShowResults, setScore, setValidation]);
+  }, [
+    quizResult?.questions,
+    setCurrentIndex,
+    setSelections,
+    setRevealed,
+    setShowResults,
+    setScore,
+    setValidation,
+  ]);
 
   useEffect(() => {
     if (!showResults) return;
     const total = normalizedQuestions.length;
     const alreadyRevealed = Object.keys(revealed).length;
     if (!total || alreadyRevealed === total) return;
-    const allRevealed = normalizedQuestions.reduce((acc, _, idx) => ({ ...acc, [idx]: true }), {});
+    const allRevealed = normalizedQuestions.reduce(
+      (acc, _, idx) => ({ ...acc, [idx]: true }),
+      {}
+    );
     setRevealed(allRevealed);
-  }, [showResults, normalizedQuestions.length, revealed, setRevealed, normalizedQuestions]);
+  }, [
+    showResults,
+    normalizedQuestions.length,
+    revealed,
+    setRevealed,
+    normalizedQuestions,
+  ]);
 
   if (status === "loading") {
     return (
@@ -157,7 +212,9 @@ export default function QuizPage() {
   if (status === "unauthenticated") {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#1b1145] via-[#130d32] to-[#0b0820] text-white">
-        <p className="text-sm text-white/70">Mengalihkan ke halaman login...</p>
+        <p className="text-sm text-white/70">
+          Mengalihkan ke halaman login...
+        </p>
       </main>
     );
   }
@@ -175,15 +232,32 @@ export default function QuizPage() {
     setShowResults(false);
     setScore(0);
     setValidation("");
+    setStreamingText("");
+    quizProgressCtrl.start();
+    let tokenCount = 0;
     try {
-      const data = await generateQuizAction({
-        transcript: transcriptResult.transcript,
-        prompt,
-        youtubeUrl: transcriptResult.youtubeUrl,
-        videoId: transcriptResult.videoId,
-        transcriptId: transcriptResult.id,
-        durationSeconds: transcriptResult.durationSeconds ?? null,
-      });
+      const data = await streamFeature(
+        "quiz",
+        {
+          transcript: transcriptResult.transcript,
+          prompt,
+          youtubeUrl: transcriptResult.youtubeUrl,
+          videoId: transcriptResult.videoId,
+          transcriptId: transcriptResult.id,
+          durationSeconds: transcriptResult.durationSeconds ?? null,
+        },
+        {
+          onToken: (token) => {
+            tokenCount += 1;
+            quizProgressCtrl.bump(
+              Math.min(96, 16 + tokenCount * 2)
+            );
+            setStreamingText((prev) =>
+              prev ? `${prev}${token}` : token
+            );
+          },
+        }
+      );
       const questions = data.quiz?.questions ?? [];
       const meta = data.quiz?.meta ?? {};
       setQuizResult({
@@ -192,10 +266,19 @@ export default function QuizPage() {
         model: data.model,
         youtubeUrl: transcriptResult.youtubeUrl,
         videoId: transcriptResult.videoId,
-        durationSeconds: data.durationSeconds ?? transcriptResult.durationSeconds ?? meta.duration_seconds ?? null,
+        durationSeconds:
+          data.durationSeconds ??
+          transcriptResult.durationSeconds ??
+          meta.duration_seconds ??
+          null,
       });
+      quizProgressCtrl.complete();
     } catch (err) {
-      setQuizError(err instanceof Error ? err.message : "Gagal membuat quiz");
+      setQuizError(
+        err instanceof Error ? err.message : "Gagal membuat quiz"
+      );
+      setStreamingText("");
+      quizProgressCtrl.fail();
     } finally {
       setQuizLoading(false);
     }
@@ -204,22 +287,27 @@ export default function QuizPage() {
   return (
     <StepLayout
       activeKey="quiz"
-      title="Uji pemahaman dengan quiz pilihan ganda"
-      subtitle='Siapkan prompt khusus untuk variasi soal.'
+      title="Uji pemahamanmu dengan quiz pilihan ganda!"
+      subtitle="Cukup siapkan prompt khusus, dan sistem akan membuat variasi soal otomatis—simple, cepat, dan bikin belajar makin nempel."
     >
       {!transcriptReady ? (
         <Card className="border-white/10 bg-white/5 text-white">
           <CardHeader>
             <CardTitle>Transcript belum tersedia</CardTitle>
             <CardDescription className="text-white/75">
-              Proses &amp; simpan URL di langkah transcribe terlebih dahulu, lalu kembali ke sini.
+              Proses &amp; simpan URL di langkah transcribe terlebih
+              dahulu, lalu kembali ke sini.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
             <Button asChild>
               <Link href="/transcribe">Ke halaman transcribe</Link>
             </Button>
-            <Button variant="secondary" onClick={() => router.back()} className="bg-white/15 text-white">
+            <Button
+              variant="secondary"
+              onClick={() => router.back()}
+              className="bg-white/15 text-white"
+            >
               Kembali
             </Button>
           </CardContent>
@@ -228,17 +316,29 @@ export default function QuizPage() {
         <>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-2">
-              <p className="text-sm font-semibold text-emerald-200">Quiz kajian</p>
-              <h1 className="text-3xl font-bold sm:text-4xl">
-                {quizResult?.videoId ?? transcriptResult.videoId ?? "Latihan soal dari transkrip YouTube"}
+              <h1 className="text-3xl font-bold text-emerald-200">
+                Quiz kajian
               </h1>
+              {/* <h1 className="text-3xl font-bold sm:text-4xl">
+                {quizResult?.videoId ??
+                  transcriptResult.videoId ??
+                "Latihan soal dari transkrip YouTube"}
+              </h1> */}
               <p className="text-white/75">
-                {totalQuestions} soal pilihan ganda · Durasi video {videoMinutes ? `${videoMinutes} menit` : "?"} ·
-                Sumber: {quizResult?.youtubeUrl ?? transcriptResult.youtubeUrl ?? "URL tidak tersedia"}
+                {totalQuestions} soal pilihan ganda · Durasi video{" "}
+                {videoMinutes ? `${videoMinutes} menit` : "?"} ·
+                Sumber:{" "}
+                {quizResult?.youtubeUrl ??
+                  transcriptResult.youtubeUrl ??
+                  "URL tidak tersedia"}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" className="bg-white/15 text-white hover:bg-white/20" asChild>
+              <Button
+                variant="secondary"
+                className="bg-white/15 text-white hover:bg-white/20"
+                asChild
+              >
                 <Link href="/transcribe">
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Kembali ke transcribe
@@ -265,7 +365,8 @@ export default function QuizPage() {
             <CardHeader>
               <CardTitle>Atur prompt quiz</CardTitle>
               <CardDescription className="text-white/75">
-                Prompt ini hanya memengaruhi soal, tidak memengaruhi ringkasan atau mindmap.
+                Prompt ini hanya memengaruhi soal, tidak memengaruhi
+                ringkasan atau mindmap.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -279,20 +380,52 @@ export default function QuizPage() {
                   placeholder="Minta variasi tingkat kesulitan atau fokus tema tertentu."
                 />
               </label>
-              {quizError ? <p className="text-sm text-amber-300">{quizError}</p> : null}
+              {quizError ? (
+                <p className="text-sm text-amber-300">{quizError}</p>
+              ) : null}
+              {quizProgress > 0 ? (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <ProgressBar
+                    value={quizProgress}
+                    label="Membangun soal"
+                  />
+                  <p className="mt-2 text-xs text-white/60">
+                    Mengonversi transcript menjadi kumpulan soal dan
+                    opsi jawaban.
+                  </p>
+                </div>
+              ) : null}
+              {(quizLoading || streamingText) && (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/80">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">
+                    Streaming token
+                  </p>
+                  <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap text-white/80">
+                    {streamingText || "Menunggu token..."}
+                  </pre>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   disabled={quizLoading}
                   onClick={handleGenerateQuiz}
                   className={cn(
-                    "bg-gradient-to-r from-[#8b5cf6] via-[#9b5cff] to-[#4f46e5] text-white shadow-brand",
+                    "bg-gradient-to-r from-[#8b5cf6] via-[#9b5cff] to-[#4f46e5] text-white shadow-brand"
                   )}
                 >
-                  {quizLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                  {quizLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
                   Jalankan Quiz
                 </Button>
-                {quizResult?.model ? <span className="text-sm text-white/70">Model: {quizResult.model}</span> : null}
+                {quizResult?.model ? (
+                  <span className="text-sm text-white/70">
+                    Model: {quizResult.model}
+                  </span>
+                ) : null}
               </div>
             </CardContent>
           </Card>
@@ -302,7 +435,8 @@ export default function QuizPage() {
               <CardHeader>
                 <CardTitle>Belum ada quiz</CardTitle>
                 <CardDescription className="text-white/75">
-                  Tekan &quot;Bangun soal&quot; setelah transcript tersedia untuk mulai membuat quiz.
+                  Tekan &quot;Bangun soal&quot; setelah transcript
+                  tersedia untuk mulai membuat quiz.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -314,52 +448,82 @@ export default function QuizPage() {
                     <p className="text-xs uppercase tracking-[0.2em] text-white/60">
                       Soal {currentIndex + 1} dari {totalQuestions}
                     </p>
-                    <CardTitle>{currentQuestion?.question ?? "Pertanyaan tidak ditemukan"}</CardTitle>
+                    <CardTitle>
+                      {currentQuestion?.question ??
+                        "Pertanyaan tidak ditemukan"}
+                    </CardTitle>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-white/70">
                     <Clock className="h-4 w-4" />
-                    {videoMinutes ? `${videoMinutes} menit` : "Durasi tidak diketahui"}
+                    {videoMinutes
+                      ? `${videoMinutes} menit`
+                      : "Durasi tidak diketahui"}
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-3">
                     {currentQuestion?.options?.map((opt, idx) => {
-                      const isSelected = selections[currentIndex] === idx;
+                      const isSelected =
+                        selections[currentIndex] === idx;
                       const isRevealed = revealed[currentIndex];
-                      const isCorrect = idx === currentQuestion.correct_option_index;
-                      const showAsWrong = isRevealed && isSelected && !isCorrect;
+                      const isCorrect =
+                        idx === currentQuestion.correct_option_index;
+                      const showAsWrong =
+                        isRevealed && isSelected && !isCorrect;
                       const showAsCorrect = isRevealed && isCorrect;
                       return (
                         <button
                           key={`${currentQuestion.id}-${idx}`}
                           onClick={() => {
-                            if (revealed[currentIndex] || showResults) return;
+                            if (revealed[currentIndex] || showResults)
+                              return;
                             setValidation("");
-                            setSelections((prev) => ({ ...prev, [currentIndex]: idx }));
+                            setSelections((prev) => ({
+                              ...prev,
+                              [currentIndex]: idx,
+                            }));
                           }}
-                          className={buildOptionClassName({ isSelected, isRevealed, showAsCorrect, showAsWrong })}
+                          className={buildOptionClassName({
+                            isSelected,
+                            isRevealed,
+                            showAsCorrect,
+                            showAsWrong,
+                          })}
                           disabled={isRevealed || showResults}
                         >
                           <span className="flex items-center gap-3">
                             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-sm font-semibold text-white">
                               {String.fromCharCode(65 + idx)}
                             </span>
-                            <span className="text-white/90">{opt}</span>
+                            <span className="text-white/90">
+                              {opt}
+                            </span>
                           </span>
-                          {renderStatusIcon({ showAsCorrect, showAsWrong })}
+                          {renderStatusIcon({
+                            showAsCorrect,
+                            showAsWrong,
+                          })}
                         </button>
                       );
                     })}
                   </div>
 
-                  {validation ? <p className="text-sm text-amber-200">{validation}</p> : null}
+                  {validation ? (
+                    <p className="text-sm text-amber-200">
+                      {validation}
+                    </p>
+                  ) : null}
 
                   {revealed[currentIndex] ? (
                     <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
                       <p className="flex items-center gap-2 font-semibold text-white">
-                        <MessageSquare className="h-4 w-4 text-emerald-300" /> Pembahasan
+                        <MessageSquare className="h-4 w-4 text-emerald-300" />{" "}
+                        Pembahasan
                       </p>
-                      <p>{currentQuestion?.explanation ?? "Penjelasan belum tersedia."}</p>
+                      <p>
+                        {currentQuestion?.explanation ??
+                          "Penjelasan belum tersedia."}
+                      </p>
                     </div>
                   ) : null}
 
@@ -371,7 +535,9 @@ export default function QuizPage() {
                       <span>
                         Jawaban dipilih:{" "}
                         {selections[currentIndex] !== undefined
-                          ? String.fromCharCode(65 + selections[currentIndex])
+                          ? String.fromCharCode(
+                              65 + selections[currentIndex]
+                            )
                           : "Belum ada"}
                       </span>
                     </div>
@@ -381,14 +547,23 @@ export default function QuizPage() {
                         size="sm"
                         onClick={() => {
                           if (currentQuestion == null) return;
-                          if (selections[currentIndex] === undefined) {
-                            setValidation("Pilih salah satu jawaban terlebih dahulu.");
+                          if (
+                            selections[currentIndex] === undefined
+                          ) {
+                            setValidation(
+                              "Pilih salah satu jawaban terlebih dahulu."
+                            );
                             return;
                           }
                           setValidation("");
-                          setRevealed((prev) => ({ ...prev, [currentIndex]: true }));
+                          setRevealed((prev) => ({
+                            ...prev,
+                            [currentIndex]: true,
+                          }));
                         }}
-                        disabled={revealed[currentIndex] || showResults}
+                        disabled={
+                          revealed[currentIndex] || showResults
+                        }
                         className="bg-white/15 text-white hover:bg-white/20"
                       >
                         Kunci jawaban
@@ -398,7 +573,9 @@ export default function QuizPage() {
                         size="sm"
                         onClick={() => {
                           setValidation("");
-                          setCurrentIndex((idx) => Math.max(idx - 1, 0));
+                          setCurrentIndex((idx) =>
+                            Math.max(idx - 1, 0)
+                          );
                         }}
                         disabled={currentIndex === 0}
                         className="text-white/75 hover:bg-white/10"
@@ -410,9 +587,17 @@ export default function QuizPage() {
                         size="sm"
                         onClick={() => {
                           setValidation("");
-                          setCurrentIndex((idx) => Math.min(idx + 1, normalizedQuestions.length - 1));
+                          setCurrentIndex((idx) =>
+                            Math.min(
+                              idx + 1,
+                              normalizedQuestions.length - 1
+                            )
+                          );
                         }}
-                        disabled={currentIndex === normalizedQuestions.length - 1}
+                        disabled={
+                          currentIndex ===
+                          normalizedQuestions.length - 1
+                        }
                         className="bg-gradient-to-r from-[#8b5cf6] via-[#9b5cff] to-[#4f46e5] text-white"
                       >
                         Selanjutnya
@@ -428,34 +613,53 @@ export default function QuizPage() {
                   <CardHeader>
                     <CardTitle>Progress kuis</CardTitle>
                     <CardDescription className="text-white/75">
-                      {Object.keys(selections).length} dari {totalQuestions} soal sudah dipilih.
+                      {Object.keys(selections).length} dari{" "}
+                      {totalQuestions} soal sudah dipilih.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="overflow-hidden rounded-full bg-white/5">
                       <div
                         className="h-2 rounded-full bg-gradient-to-r from-emerald-400 via-blue-400 to-indigo-500 transition-all"
-                        style={{ width: `${Math.min(100, progress)}%` }}
+                        style={{
+                          width: `${Math.min(100, progress)}%`,
+                        }}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-sm text-white/75">
                       <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                        <p className="text-xs uppercase tracking-[0.15em] text-white/60">Total soal</p>
-                        <p className="text-xl font-semibold text-white">{totalQuestions}</p>
+                        <p className="text-xs uppercase tracking-[0.15em] text-white/60">
+                          Total soal
+                        </p>
+                        <p className="text-xl font-semibold text-white">
+                          {totalQuestions}
+                        </p>
                       </div>
                       <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                        <p className="text-xs uppercase tracking-[0.15em] text-white/60">Durasi video</p>
-                        <p className="text-xl font-semibold text-white">{videoMinutes ? `${videoMinutes}m` : "?"}</p>
+                        <p className="text-xs uppercase tracking-[0.15em] text-white/60">
+                          Durasi video
+                        </p>
+                        <p className="text-xl font-semibold text-white">
+                          {videoMinutes ? `${videoMinutes}m` : "?"}
+                        </p>
                       </div>
                     </div>
                     <Button
                       size="sm"
                       disabled={!allAnswered}
                       onClick={() => {
-                        const finalScore = normalizedQuestions.reduce((acc, q, idx) => {
-                          const selected = selections[idx];
-                          return acc + (selected === q.correct_option_index ? 1 : 0);
-                        }, 0);
+                        const finalScore = normalizedQuestions.reduce(
+                          (acc, q, idx) => {
+                            const selected = selections[idx];
+                            return (
+                              acc +
+                              (selected === q.correct_option_index
+                                ? 1
+                                : 0)
+                            );
+                          },
+                          0
+                        );
                         setScore(finalScore);
                         setShowResults(true);
                       }}
@@ -464,7 +668,11 @@ export default function QuizPage() {
                       <Flag className="mr-2 h-4 w-4" />
                       Selesai & lihat skor
                     </Button>
-                    {!allAnswered ? <p className="text-xs text-amber-200">Jawab semua soal untuk melihat skor akhir.</p> : null}
+                    {!allAnswered ? (
+                      <p className="text-xs text-amber-200">
+                        Jawab semua soal untuk melihat skor akhir.
+                      </p>
+                    ) : null}
                   </CardContent>
                 </Card>
 
@@ -473,18 +681,26 @@ export default function QuizPage() {
                     <CardHeader>
                       <CardTitle>Hasil akhir</CardTitle>
                       <CardDescription className="text-white/80">
-                        Anda menjawab {score} / {totalQuestions} soal dengan benar.
+                        Anda menjawab {score} / {totalQuestions} soal
+                        dengan benar.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="rounded-xl border border-white/10 bg-white/10 p-3 text-sm text-white/80">
-                        <p className="font-semibold text-emerald-200">{accuracy}% akurasi</p>
+                        <p className="font-semibold text-emerald-200">
+                          {accuracy}% akurasi
+                        </p>
                         <p>
-                          Pertajam pemahaman dengan mengulang soal yang salah atau kembali ke ringkasan untuk membaca ulang konteks.
+                          Pertajam pemahaman dengan mengulang soal
+                          yang salah atau kembali ke ringkasan untuk
+                          membaca ulang konteks.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Button asChild className="bg-white text-[#120b34]">
+                        <Button
+                          asChild
+                          className="bg-white text-[#120b34]"
+                        >
                           <Link href="/summary">Buka ringkasan</Link>
                         </Button>
                         <Button
@@ -509,13 +725,23 @@ export default function QuizPage() {
                     <CardHeader>
                       <CardTitle>Tips mengerjakan</CardTitle>
                       <CardDescription className="text-white/75">
-                        Kunci jawaban per soal untuk melihat pembahasan. Nilai akhir muncul setelah semua soal terjawab.
+                        Kunci jawaban per soal untuk melihat
+                        pembahasan. Nilai akhir muncul setelah semua
+                        soal terjawab.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm text-white/80">
-                      <p>• Soal dibuat otomatis dari transkrip video.</p>
-                      <p>• Pilih jawaban, kunci, lalu lanjut ke soal berikutnya.</p>
-                      <p>• Tekan &quot;Selesai&quot; setelah semua jawaban terisi.</p>
+                      <p>
+                        • Soal dibuat otomatis dari transkrip video.
+                      </p>
+                      <p>
+                        • Pilih jawaban, kunci, lalu lanjut ke soal
+                        berikutnya.
+                      </p>
+                      <p>
+                        • Tekan &quot;Selesai&quot; setelah semua
+                        jawaban terisi.
+                      </p>
                     </CardContent>
                   </Card>
                 )}

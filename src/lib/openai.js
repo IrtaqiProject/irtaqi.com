@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 
+import { getCachedCompletion, setCachedCompletion } from "./llm-cache";
+
 let cachedClient = null;
 
 export function getOpenAIClient() {
@@ -13,6 +15,10 @@ export function getOpenAIClient() {
   return cachedClient;
 }
 
+function resolveModel() {
+  return process.env.OPENAI_MODEL ?? "gpt-5-mini";
+}
+
 export async function transcribeAudioStub(source, prompt) {
   // Placeholder to avoid network calls during development.
   return {
@@ -22,7 +28,7 @@ export async function transcribeAudioStub(source, prompt) {
   };
 }
 
-function buildStubInsights(
+export function buildStubInsights(
   transcript,
   prompt,
   { quizCount = 10, durationSeconds = null } = {}
@@ -125,49 +131,12 @@ function buildUserContent({
     .join("\n\n");
 }
 
-async function runJsonCompletion({ systemPrompt, userContent }) {
-  const client = getOpenAIClient();
-  const model = process.env.OPENAI_MODEL ?? "gpt-5-mini";
-  const completion = await client.chat.completions.create({
-    model,
-    ...(model?.startsWith("gpt-5") ? {} : { temperature: 0.4 }),
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userContent },
-    ],
-  });
-
-  const content = completion.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error("LLM tidak mengembalikan konten.");
-  }
-
-  let parsed;
-  try {
-    parsed = JSON.parse(content);
-  } catch (err) {
-    throw new Error("LLM gagal menghasilkan JSON.");
-  }
-
-  return { parsed, model: completion.model ?? "openai" };
-}
-
-export async function generateSummaryFromTranscript(
+export function buildSummaryPrompt({
+  videoTitle,
+  prompt,
   transcript,
-  { prompt, videoTitle, durationSeconds } = {}
-) {
-  if (!transcript?.trim()) {
-    throw new Error("Transcript kosong atau tidak ditemukan.");
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    const stub = buildStubInsights(transcript, prompt, {
-      durationSeconds,
-    });
-    return { summary: stub.summary, model: stub.model };
-  }
-
+  durationSeconds,
+}) {
   const systemPrompt = `
 Anda adalah asisten yang meringkas kajian/ceramah berbahasa Indonesia.
 
@@ -195,29 +164,16 @@ Ketentuan:
     transcript,
     durationSeconds,
   });
-  const { parsed, model } = await runJsonCompletion({
-    systemPrompt,
-    userContent,
-  });
 
-  return { summary: parsed.summary ?? {}, model };
+  return { systemPrompt, userContent };
 }
 
-export async function generateQaFromTranscript(
+export function buildQaPrompt({
+  videoTitle,
+  prompt,
   transcript,
-  { prompt, videoTitle, durationSeconds } = {}
-) {
-  if (!transcript?.trim()) {
-    throw new Error("Transcript kosong atau tidak ditemukan.");
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    const stub = buildStubInsights(transcript, prompt, {
-      durationSeconds,
-    });
-    return { qa: stub.qa, model: stub.model };
-  }
-
+  durationSeconds,
+}) {
   const systemPrompt = `
 Anda adalah asisten Q&A untuk kajian/ceramah berbahasa Indonesia.
 
@@ -243,29 +199,16 @@ Ketentuan:
     transcript,
     durationSeconds,
   });
-  const { parsed, model } = await runJsonCompletion({
-    systemPrompt,
-    userContent,
-  });
 
-  return { qa: parsed.qa ?? {}, model };
+  return { systemPrompt, userContent };
 }
 
-export async function generateMindmapFromTranscript(
+export function buildMindmapPrompt({
+  videoTitle,
+  prompt,
   transcript,
-  { prompt, videoTitle, durationSeconds } = {}
-) {
-  if (!transcript?.trim()) {
-    throw new Error("Transcript kosong atau tidak ditemukan.");
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    const stub = buildStubInsights(transcript, prompt, {
-      durationSeconds,
-    });
-    return { mindmap: stub.mindmap, model: stub.model };
-  }
-
+  durationSeconds,
+}) {
   const systemPrompt = `
 Anda membangun mind map hierarkis dari transkrip kajian berbahasa Indonesia.
 
@@ -296,37 +239,17 @@ Ketentuan:
     transcript,
     durationSeconds,
   });
-  const { parsed, model } = await runJsonCompletion({
-    systemPrompt,
-    userContent,
-  });
 
-  return { mindmap: parsed.mindmap ?? {}, model };
+  return { systemPrompt, userContent };
 }
 
-export async function generateQuizFromTranscript(
+export function buildQuizPrompt({
+  videoTitle,
+  prompt,
   transcript,
-  {
-    prompt,
-    videoTitle,
-    quizCount: quizCountInput = 10,
-    durationSeconds,
-  } = {}
-) {
-  if (!transcript?.trim()) {
-    throw new Error("Transcript kosong atau tidak ditemukan.");
-  }
-
-  const quizCount = quizCountInput ?? 10;
-
-  if (!process.env.OPENAI_API_KEY) {
-    const stub = buildStubInsights(transcript, prompt, {
-      quizCount,
-      durationSeconds,
-    });
-    return { quiz: stub.quiz, model: stub.model };
-  }
-
+  durationSeconds,
+  quizCount,
+}) {
   const systemPrompt = `
 Anda membuat soal pilihan ganda dari transkrip kajian berbahasa Indonesia.
 
@@ -374,6 +297,183 @@ Ketentuan:
     transcript,
     durationSeconds,
     extras,
+  });
+
+  return { systemPrompt, userContent };
+}
+
+async function runJsonCompletion({ systemPrompt, userContent }) {
+  const { key, completion: cached } = await getCachedCompletion({
+    systemPrompt,
+    userContent,
+  });
+
+  const completion =
+    cached ??
+    (await (async () => {
+      const client = getOpenAIClient();
+      const model = resolveModel();
+      const fresh = await client.chat.completions.create({
+        model,
+        ...(model?.startsWith("gpt-5") ? {} : { temperature: 0.4 }),
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent },
+        ],
+      });
+      await setCachedCompletion(key, fresh);
+      return fresh;
+    })());
+
+  const content = completion.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("LLM tidak mengembalikan konten.");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch (err) {
+    throw new Error("LLM gagal menghasilkan JSON.");
+  }
+
+  return { parsed, model: completion.model ?? "openai" };
+}
+
+export async function streamJsonCompletion({ systemPrompt, userContent }) {
+  const client = getOpenAIClient();
+  const model = resolveModel();
+  const stream = await client.chat.completions.create({
+    model,
+    ...(model?.startsWith("gpt-5") ? {} : { temperature: 0.4 }),
+    response_format: { type: "json_object" },
+    stream: true,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userContent },
+    ],
+  });
+
+  return { stream, model };
+}
+
+export async function generateSummaryFromTranscript(
+  transcript,
+  { prompt, videoTitle, durationSeconds } = {}
+) {
+  if (!transcript?.trim()) {
+    throw new Error("Transcript kosong atau tidak ditemukan.");
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    const stub = buildStubInsights(transcript, prompt, {
+      durationSeconds,
+    });
+    return { summary: stub.summary, model: stub.model };
+  }
+
+  const { systemPrompt, userContent } = buildSummaryPrompt({
+    videoTitle,
+    prompt,
+    transcript,
+    durationSeconds,
+  });
+  const { parsed, model } = await runJsonCompletion({
+    systemPrompt,
+    userContent,
+  });
+
+  return { summary: parsed.summary ?? {}, model };
+}
+
+export async function generateQaFromTranscript(
+  transcript,
+  { prompt, videoTitle, durationSeconds } = {}
+) {
+  if (!transcript?.trim()) {
+    throw new Error("Transcript kosong atau tidak ditemukan.");
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    const stub = buildStubInsights(transcript, prompt, {
+      durationSeconds,
+    });
+    return { qa: stub.qa, model: stub.model };
+  }
+
+  const { systemPrompt, userContent } = buildQaPrompt({
+    videoTitle,
+    prompt,
+    transcript,
+    durationSeconds,
+  });
+  const { parsed, model } = await runJsonCompletion({
+    systemPrompt,
+    userContent,
+  });
+
+  return { qa: parsed.qa ?? {}, model };
+}
+
+export async function generateMindmapFromTranscript(
+  transcript,
+  { prompt, videoTitle, durationSeconds } = {}
+) {
+  if (!transcript?.trim()) {
+    throw new Error("Transcript kosong atau tidak ditemukan.");
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    const stub = buildStubInsights(transcript, prompt, {
+      durationSeconds,
+    });
+    return { mindmap: stub.mindmap, model: stub.model };
+  }
+
+  const { systemPrompt, userContent } = buildMindmapPrompt({
+    videoTitle,
+    prompt,
+    transcript,
+    durationSeconds,
+  });
+  const { parsed, model } = await runJsonCompletion({
+    systemPrompt,
+    userContent,
+  });
+
+  return { mindmap: parsed.mindmap ?? {}, model };
+}
+
+export async function generateQuizFromTranscript(
+  transcript,
+  {
+    prompt,
+    videoTitle,
+    quizCount: quizCountInput = 10,
+    durationSeconds,
+  } = {}
+) {
+  if (!transcript?.trim()) {
+    throw new Error("Transcript kosong atau tidak ditemukan.");
+  }
+
+  const quizCount = quizCountInput ?? 10;
+
+  if (!process.env.OPENAI_API_KEY) {
+    const stub = buildStubInsights(transcript, prompt, {
+      quizCount,
+      durationSeconds,
+    });
+    return { quiz: stub.quiz, model: stub.model };
+  }
+
+  const { systemPrompt, userContent } = buildQuizPrompt({
+    videoTitle,
+    prompt,
+    transcript,
+    durationSeconds,
+    quizCount,
   });
   const { parsed, model } = await runJsonCompletion({
     systemPrompt,
