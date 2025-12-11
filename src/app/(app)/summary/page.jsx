@@ -32,7 +32,9 @@ import {
 export default function SummaryPage() {
   const { status } = useSession();
   const router = useRouter();
-  const [transcriptResult] = useAtom(transcriptResultAtom);
+  const [transcriptResult, setTranscriptResult] = useAtom(
+    transcriptResultAtom
+  );
   const [prompt, setPrompt] = useAtom(summaryPromptAtom);
   const [summaryResult, setSummaryResult] =
     useAtom(summaryResultAtom);
@@ -104,8 +106,14 @@ export default function SummaryPage() {
           },
         }
       );
+      if (data.transcriptId) {
+        setTranscriptResult((prev) =>
+          prev ? { ...prev, id: data.transcriptId } : prev
+        );
+      }
       setSummaryResult({ ...data.summary, model: data.model });
       summaryProgressCtrl.complete();
+      setStreamingText("");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Gagal membuat ringkasan"

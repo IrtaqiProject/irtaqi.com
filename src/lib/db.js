@@ -71,6 +71,169 @@ function mergeIntoMemory(id, updates) {
   return merged;
 }
 
+function sanitizeTranscript(record, { includeText = false } = {}) {
+  if (!record) return null;
+  const base = {
+    id: record.id ?? null,
+    video_id: record.video_id ?? null,
+    youtube_url: record.youtube_url ?? null,
+    duration_seconds: record.duration_seconds ?? null,
+    summary: record.summary ?? null,
+    qa: record.qa ?? null,
+    mindmap: record.mindmap ?? null,
+    quiz: record.quiz ?? null,
+    model: record.model ?? null,
+    created_at: record.created_at ?? null,
+    prompt: record.prompt ?? null,
+    user_id: record.user_id ?? null,
+  };
+
+  if (includeText) {
+    return {
+      ...base,
+      transcript: record.transcript ?? null,
+      srt: record.srt ?? null,
+    };
+  }
+
+  return base;
+}
+
+function sanitizeTranscriptList(records, { includeText = false } = {}) {
+  return (records ?? []).map((item) =>
+    sanitizeTranscript(item, { includeText }),
+  );
+}
+
+function findMemoryTranscript(id) {
+  return memoryStore.find((item) => item.id === id) ?? null;
+}
+
+export async function getTranscriptById(
+  id,
+  { includeText = true, userId = null } = {},
+) {
+  if (!id || !userId) return null;
+
+  if (dbDisabled) {
+    const record = findMemoryTranscript(id);
+    if (!record || record.user_id !== userId) return null;
+    return sanitizeTranscript(record, { includeText });
+  }
+
+  const db = createPool();
+  if (!db) {
+    const record = findMemoryTranscript(id);
+    if (!record || record.user_id !== userId) return null;
+    return sanitizeTranscript(record, { includeText });
+  }
+
+  try {
+    const { rows } = await db.query(
+      `
+        SELECT
+          id,
+          video_id,
+          youtube_url,
+          duration_seconds,
+          summary,
+          qa,
+          mindmap,
+          quiz,
+          model,
+          created_at,
+          transcript,
+          srt,
+          prompt,
+          user_id
+        FROM transcripts
+        WHERE id = $1 AND user_id = $2
+        LIMIT 1
+      `,
+      [id, userId],
+    );
+    return sanitizeTranscript(rows?.[0] ?? null, { includeText });
+  } catch (err) {
+    dbDisabled = true;
+    globalStore._pgDisabled = true;
+    console.warn(
+      "[db] Get transcript gagal, fallback ke memory store.",
+      err.message,
+    );
+    const record = findMemoryTranscript(id);
+    if (!record || record.user_id !== userId) return null;
+    return sanitizeTranscript(record, { includeText });
+  }
+}
+
+function clampLimit(limit) {
+  const parsed = Number(limit);
+  if (!Number.isFinite(parsed) || Number.isNaN(parsed)) return 20;
+  return Math.min(Math.max(Math.round(parsed), 1), 100);
+}
+
+export async function listTranscripts({ userId, limit = 20 } = {}) {
+  if (!userId) return [];
+  const resolvedLimit = clampLimit(limit);
+
+  if (dbDisabled) {
+    return sanitizeTranscriptList(
+      memoryStore
+        .filter((item) => item.user_id === userId)
+        .slice(-resolvedLimit)
+        .reverse(),
+    );
+  }
+
+  const db = createPool();
+  if (!db) {
+    return sanitizeTranscriptList(
+      memoryStore
+        .filter((item) => item.user_id === userId)
+        .slice(-resolvedLimit)
+        .reverse(),
+    );
+  }
+
+  try {
+    const { rows } = await db.query(
+      `
+        SELECT
+          id,
+          video_id,
+          youtube_url,
+          duration_seconds,
+          summary,
+          qa,
+          mindmap,
+          quiz,
+          model,
+          created_at,
+          user_id
+        FROM transcripts
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2
+      `,
+      [userId, resolvedLimit],
+    );
+    return sanitizeTranscriptList(rows);
+  } catch (err) {
+    dbDisabled = true;
+    globalStore._pgDisabled = true;
+    console.warn(
+      "[db] List transcripts gagal, fallback ke memory store.",
+      err.message,
+    );
+    return sanitizeTranscriptList(
+      memoryStore
+        .filter((item) => item.user_id === userId)
+        .slice(-resolvedLimit)
+        .reverse(),
+    );
+  }
+}
+
 export async function saveTranscriptResult({
   videoId,
   youtubeUrl,
@@ -83,7 +246,12 @@ export async function saveTranscriptResult({
   quiz,
   durationSeconds,
   model,
+  userId,
 }) {
+  if (!userId) {
+    throw new Error("User belum terautentikasi.");
+  }
+
   if (dbDisabled) {
     return saveToMemory({
       video_id: videoId ?? null,
@@ -97,6 +265,7 @@ export async function saveTranscriptResult({
       quiz,
       duration_seconds: durationSeconds ?? null,
       model,
+      user_id: userId,
     });
   }
 
@@ -114,6 +283,7 @@ export async function saveTranscriptResult({
       quiz,
       duration_seconds: durationSeconds ?? null,
       model,
+      user_id: userId,
     });
   }
 
@@ -134,8 +304,9 @@ export async function saveTranscriptResult({
         mindmap,
         quiz,
         duration_seconds,
-        model
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12)
+        model,
+        user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13)
       RETURNING *
     `,
       [
@@ -151,6 +322,7 @@ export async function saveTranscriptResult({
         toJsonb(quiz),
         durationSeconds ?? null,
         model ?? null,
+        userId,
       ],
     );
 
@@ -177,6 +349,7 @@ export async function saveTranscriptResult({
       quiz,
       duration_seconds: durationSeconds ?? null,
       model,
+      user_id: userId,
     });
   }
 }

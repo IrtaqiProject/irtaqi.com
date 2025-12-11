@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAtom } from "jotai";
 import { useSession } from "next-auth/react";
 import {
@@ -14,6 +14,7 @@ import {
   Loader2,
   MessageSquare,
   Sparkles,
+  Timer,
   XCircle,
 } from "lucide-react";
 
@@ -45,6 +46,9 @@ import {
   selectionsAtom,
   showResultsAtom,
   validationAtom,
+  timerDurationAtom,
+  timerRemainingAtom,
+  timerRunningAtom,
 } from "@/state/quiz-atoms";
 
 function normalizeQuestions(questions = []) {
@@ -114,10 +118,27 @@ function renderStatusIcon({ showAsCorrect, showAsWrong }) {
   return null;
 }
 
+function formatSeconds(seconds) {
+  const safe = Math.max(0, Math.floor(seconds ?? 0));
+  const m = Math.floor(safe / 60);
+  const s = safe % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function calculateQuizDuration(totalQuestions) {
+  const perQuestion = 40; // detik per soal
+  const minSeconds = 2 * 60;
+  const maxSeconds = 12 * 60;
+  if (!totalQuestions || Number.isNaN(totalQuestions)) return minSeconds;
+  return Math.min(maxSeconds, Math.max(minSeconds, totalQuestions * perQuestion));
+}
+
 export default function QuizPage() {
   const { status } = useSession();
   const router = useRouter();
-  const [transcriptResult] = useAtom(transcriptResultAtom);
+  const [transcriptResult, setTranscriptResult] = useAtom(
+    transcriptResultAtom
+  );
   const [quizResult, setQuizResult] = useAtom(quizResultAtom);
   const [prompt, setPrompt] = useAtom(quizPromptAtom);
   const [quizLoading, setQuizLoading] = useAtom(quizLoadingAtom);
@@ -129,7 +150,14 @@ export default function QuizPage() {
   const [score, setScore] = useAtom(scoreAtom);
   const [showResults, setShowResults] = useAtom(showResultsAtom);
   const [validation, setValidation] = useAtom(validationAtom);
+  const [timerDuration, setTimerDuration] =
+    useAtom(timerDurationAtom);
+  const [timerRemaining, setTimerRemaining] = useAtom(
+    timerRemainingAtom
+  );
+  const [timerRunning, setTimerRunning] = useAtom(timerRunningAtom);
   const [streamingText, setStreamingText] = useState("");
+  const [quizStarted, setQuizStarted] = useState(false);
   const quizProgressCtrl = useFeatureProgress(setQuizProgress);
 
   const transcriptReady = Boolean(transcriptResult?.transcript);
@@ -159,6 +187,44 @@ export default function QuizPage() {
   const videoMinutes = durationSeconds
     ? Math.round(durationSeconds / 60)
     : null;
+  const timePercent = timerDuration
+    ? Math.round(
+        (Math.max(0, timerRemaining) / timerDuration) * 100
+      )
+    : 0;
+  const formattedRemaining = formatSeconds(timerRemaining);
+  const canStartQuiz =
+    normalizedQuestions.length > 0 &&
+    timerDuration > 0 &&
+    !showResults;
+  const canInteract = quizStarted && !showResults;
+
+  const finalizeQuiz = useCallback(
+    (reason) => {
+      if (!normalizedQuestions.length) return;
+      const finalScore = normalizedQuestions.reduce(
+        (acc, q, idx) => {
+          const selected = selections[idx];
+          return (
+            acc + (selected === q.correct_option_index ? 1 : 0)
+          );
+        },
+        0
+      );
+      setScore(finalScore);
+      setShowResults(true);
+      setTimerRunning(false);
+      setValidation(reason ?? "");
+    },
+    [
+      normalizedQuestions,
+      selections,
+      setScore,
+      setShowResults,
+      setTimerRunning,
+      setValidation,
+    ]
+  );
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -173,6 +239,7 @@ export default function QuizPage() {
     setShowResults(false);
     setScore(0);
     setValidation("");
+    setQuizStarted(false);
   }, [
     quizResult?.questions,
     setCurrentIndex,
@@ -182,6 +249,29 @@ export default function QuizPage() {
     setScore,
     setValidation,
   ]);
+
+  useEffect(() => {
+    if (!timerRunning) return undefined;
+    const id = setInterval(() => {
+      setTimerRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(id);
+          finalizeQuiz(
+            "Waktu habis, jawaban otomatis dikunci."
+          );
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [timerRunning, setTimerRemaining, finalizeQuiz]);
+
+  useEffect(() => {
+    if (showResults) {
+      setTimerRunning(false);
+    }
+  }, [showResults, setTimerRunning]);
 
   useEffect(() => {
     if (!showResults) return;
@@ -233,6 +323,10 @@ export default function QuizPage() {
     setScore(0);
     setValidation("");
     setStreamingText("");
+    setTimerRunning(false);
+    setTimerRemaining(0);
+    setTimerDuration(0);
+    setQuizStarted(false);
     quizProgressCtrl.start();
     let tokenCount = 0;
     try {
@@ -258,6 +352,11 @@ export default function QuizPage() {
           },
         }
       );
+      if (data.transcriptId) {
+        setTranscriptResult((prev) =>
+          prev ? { ...prev, id: data.transcriptId } : prev
+        );
+      }
       const questions = data.quiz?.questions ?? [];
       const meta = data.quiz?.meta ?? {};
       setQuizResult({
@@ -272,12 +371,24 @@ export default function QuizPage() {
           meta.duration_seconds ??
           null,
       });
+      const totalForTimer =
+        meta?.total_questions ?? questions.length;
+      const timerSec = calculateQuizDuration(totalForTimer);
+      setTimerDuration(timerSec);
+      setTimerRemaining(timerSec);
+      setTimerRunning(false);
+      setQuizStarted(false);
       quizProgressCtrl.complete();
+      setStreamingText("");
     } catch (err) {
       setQuizError(
         err instanceof Error ? err.message : "Gagal membuat quiz"
       );
       setStreamingText("");
+      setTimerRunning(false);
+      setTimerRemaining(0);
+      setTimerDuration(0);
+      setQuizStarted(false);
       quizProgressCtrl.fail();
     } finally {
       setQuizLoading(false);
@@ -344,9 +455,9 @@ export default function QuizPage() {
                   Kembali ke transcribe
                 </Link>
               </Button>
-              <Button
-                variant="ghost"
-                className="text-white/80 hover:bg-white/10"
+                  <Button
+                    variant="ghost"
+                    className="text-white/80 hover:bg-white/10"
                 onClick={() => {
                   setSelections({});
                   setRevealed({});
@@ -354,6 +465,11 @@ export default function QuizPage() {
                   setScore(0);
                   setValidation("");
                   setCurrentIndex(0);
+                  setTimerRunning(false);
+                  if (timerDuration) {
+                    setTimerRemaining(timerDuration);
+                  }
+                  setQuizStarted(false);
                 }}
               >
                 Reset jawaban
@@ -426,6 +542,11 @@ export default function QuizPage() {
                     Model: {quizResult.model}
                   </span>
                 ) : null}
+                {!quizStarted && normalizedQuestions.length ? (
+                  <span className="text-xs text-amber-200">
+                    Tekan Mulai sebelum mengerjakan soal.
+                  </span>
+                ) : null}
               </div>
             </CardContent>
           </Card>
@@ -475,6 +596,12 @@ export default function QuizPage() {
                         <button
                           key={`${currentQuestion.id}-${idx}`}
                           onClick={() => {
+                            if (!canInteract || currentQuestion == null) {
+                              setValidation(
+                                "Tekan Mulai untuk mulai mengerjakan."
+                              );
+                              return;
+                            }
                             if (revealed[currentIndex] || showResults)
                               return;
                             setValidation("");
@@ -489,7 +616,7 @@ export default function QuizPage() {
                             showAsCorrect,
                             showAsWrong,
                           })}
-                          disabled={isRevealed || showResults}
+                          disabled={isRevealed || showResults || !canInteract}
                         >
                           <span className="flex items-center gap-3">
                             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-sm font-semibold text-white">
@@ -541,12 +668,17 @@ export default function QuizPage() {
                           : "Belum ada"}
                       </span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2">
                       <Button
                         variant="secondary"
                         size="sm"
                         onClick={() => {
-                          if (currentQuestion == null) return;
+                          if (!canInteract || currentQuestion == null) {
+                            setValidation(
+                              "Tekan Mulai untuk mulai mengerjakan."
+                            );
+                            return;
+                          }
                           if (
                             selections[currentIndex] === undefined
                           ) {
@@ -560,18 +692,24 @@ export default function QuizPage() {
                             ...prev,
                             [currentIndex]: true,
                           }));
-                        }}
-                        disabled={
-                          revealed[currentIndex] || showResults
-                        }
-                        className="bg-white/15 text-white hover:bg-white/20"
-                      >
-                        Kunci jawaban
-                      </Button>
+                      }}
+                      disabled={
+                        revealed[currentIndex] || showResults || !canInteract
+                      }
+                      className="bg-white/15 text-white hover:bg-white/20"
+                    >
+                      Kunci jawaban
+                    </Button>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => {
+                          if (!canInteract) {
+                            setValidation(
+                              "Tekan Mulai untuk mulai mengerjakan."
+                            );
+                            return;
+                          }
                           setValidation("");
                           setCurrentIndex((idx) =>
                             Math.max(idx - 1, 0)
@@ -586,6 +724,12 @@ export default function QuizPage() {
                       <Button
                         size="sm"
                         onClick={() => {
+                          if (!canInteract) {
+                            setValidation(
+                              "Tekan Mulai untuk mulai mengerjakan."
+                            );
+                            return;
+                          }
                           setValidation("");
                           setCurrentIndex((idx) =>
                             Math.min(
@@ -618,6 +762,61 @@ export default function QuizPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    {timerDuration ? (
+                      <div className="space-y-2 rounded-xl border border-white/10 bg-white/10 p-3">
+                        <div className="flex items-center justify-between text-sm text-white">
+                          <span className="flex items-center gap-2 font-semibold">
+                            <Timer className="h-4 w-4 text-amber-200" />
+                            Sisa waktu
+                          </span>
+                          <span className="text-lg font-bold text-amber-100">
+                            {formattedRemaining}
+                          </span>
+                        </div>
+                        <div className="overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-2 rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-indigo-400 transition-[width] duration-300"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.max(0, timePercent)
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="text-xs text-white/60">
+                          {timerRunning
+                            ? "Timer berjalan. Jawaban dikunci saat waktu habis."
+                            : showResults
+                            ? "Waktu berakhir atau kuis selesai."
+                            : "Tekan Mulai untuk menjalankan timer dan membuka kuis."}
+                        </p>
+                        <p className="text-[11px] text-white/50">
+                          Dialokasikan {formatSeconds(timerDuration)} untuk{" "}
+                          {totalQuestions} soal (~40 detik/soal).
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="bg-white/15 text-white hover:bg-white/20"
+                            disabled={!canStartQuiz || timerRunning}
+                            onClick={() => {
+                              if (timerRunning) return;
+                              if (!canStartQuiz) return;
+                              setValidation("");
+                              if (!timerRemaining) {
+                                setTimerRemaining(timerDuration);
+                              }
+                              setQuizStarted(true);
+                              setTimerRunning(true);
+                            }}
+                          >
+                            Mulai
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="overflow-hidden rounded-full bg-white/5">
                       <div
                         className="h-2 rounded-full bg-gradient-to-r from-emerald-400 via-blue-400 to-indigo-500 transition-all"
@@ -637,31 +836,26 @@ export default function QuizPage() {
                       </div>
                       <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                         <p className="text-xs uppercase tracking-[0.15em] text-white/60">
-                          Durasi video
+                          Durasi waktu
                         </p>
                         <p className="text-xl font-semibold text-white">
-                          {videoMinutes ? `${videoMinutes}m` : "?"}
+                          {formatSeconds(timerDuration || 0)}
                         </p>
                       </div>
                     </div>
                     <Button
                       size="sm"
-                      disabled={!allAnswered}
+                      disabled={!allAnswered || !canInteract}
                       onClick={() => {
-                        const finalScore = normalizedQuestions.reduce(
-                          (acc, q, idx) => {
-                            const selected = selections[idx];
-                            return (
-                              acc +
-                              (selected === q.correct_option_index
-                                ? 1
-                                : 0)
-                            );
-                          },
-                          0
-                        );
-                        setScore(finalScore);
-                        setShowResults(true);
+                        if (!allAnswered || !canInteract) {
+                          setValidation(
+                            !canInteract
+                              ? "Tekan Mulai untuk memulai kuis."
+                              : "Jawab semua soal untuk melihat skor akhir."
+                          );
+                          return;
+                        }
+                        finalizeQuiz();
                       }}
                       className="w-full bg-gradient-to-r from-[#16a34a] via-[#22c55e] to-[#10b981] text-white shadow-brand disabled:opacity-70"
                     >

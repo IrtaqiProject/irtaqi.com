@@ -6,3 +6,6 @@ export const revealedAtom = atom({});
 export const scoreAtom = atom(0);
 export const showResultsAtom = atom(false);
 export const validationAtom = atom("");
+export const timerDurationAtom = atom(0); // detik
+export const timerRemainingAtom = atom(0);
+export const timerRunningAtom = atom(false);

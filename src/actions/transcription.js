@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { getServerSession } from "next-auth";
 
 import { saveTranscriptResult, updateTranscriptFeatures } from "@/lib/db";
 import {
@@ -11,6 +12,7 @@ import {
   transcribeAudioStub,
 } from "@/lib/openai";
 import { extractVideoId, fetchYoutubeTranscript } from "@/lib/youtube";
+import { authOptions } from "@/lib/auth";
 
 const processSchema = z.object({
   youtubeUrl: z.string().url(),
@@ -42,6 +44,11 @@ export async function processYoutubeTranscriptionAction(input) {
     throw new Error("Input tidak valid");
   }
 
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new Error("Harus login untuk memproses transcript.");
+  }
+
   const videoId = extractVideoId(parsed.data.youtubeUrl);
   if (!videoId) {
     throw new Error("URL YouTube tidak valid");
@@ -57,6 +64,7 @@ export async function processYoutubeTranscriptionAction(input) {
     transcriptText: transcript.text,
     srt: transcript.srt,
     durationSeconds,
+    userId: session.user.id,
   });
 
   return {

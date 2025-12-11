@@ -35,7 +35,9 @@ import {
 export default function MindmapPage() {
   const { status } = useSession();
   const router = useRouter();
-  const [transcriptResult] = useAtom(transcriptResultAtom);
+  const [transcriptResult, setTranscriptResult] = useAtom(
+    transcriptResultAtom
+  );
   const [prompt, setPrompt] = useAtom(mindmapPromptAtom);
   const [mindmapResult, setMindmapResult] =
     useAtom(mindmapResultAtom);
@@ -123,9 +125,15 @@ export default function MindmapPage() {
           },
         }
       );
+      if (data.transcriptId) {
+        setTranscriptResult((prev) =>
+          prev ? { ...prev, id: data.transcriptId } : prev
+        );
+      }
       setMindmapResult({ ...data.mindmap, model: data.model });
       renderChart(data.mindmap?.nodes ?? [], data.mindmap?.title);
       mindmapProgressCtrl.complete();
+      setStreamingText("");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Gagal membuat mindmap"
