@@ -104,6 +104,7 @@ export default function QaPage() {
         model: data.model,
       });
       qaProgressCtrl.complete();
+      setStreamingText("");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Gagal membuat Q&A"

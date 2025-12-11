@@ -106,6 +106,7 @@ export default function SummaryPage() {
       );
       setSummaryResult({ ...data.summary, model: data.model });
       summaryProgressCtrl.complete();
+      setStreamingText("");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Gagal membuat ringkasan"

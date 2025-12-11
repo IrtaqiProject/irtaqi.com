@@ -126,6 +126,7 @@ export default function MindmapPage() {
       setMindmapResult({ ...data.mindmap, model: data.model });
       renderChart(data.mindmap?.nodes ?? [], data.mindmap?.title);
       mindmapProgressCtrl.complete();
+      setStreamingText("");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Gagal membuat mindmap"

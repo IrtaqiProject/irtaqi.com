@@ -214,8 +214,9 @@ export default function Home() {
                 <p className="text-xs uppercase tracking-[0.2em] text-emerald-200">
                   AI Flow
                 </p>
-                <p className="text-lg font-semibold text-white">
-                  Kajian → Transcript → Quiz → Mindmap
+                <p className="text-xl font-semibold text-white">
+                  Kajian → Transcript → Summarize → QA → Mindmap →
+                  Quiz
                 </p>
               </div>
               <Wand2 className="h-8 w-8 text-emerald-300" />

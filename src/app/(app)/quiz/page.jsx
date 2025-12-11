@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAtom } from "jotai";
 import { useSession } from "next-auth/react";
 import {
@@ -14,6 +14,7 @@ import {
   Loader2,
   MessageSquare,
   Sparkles,
+  Timer,
   XCircle,
 } from "lucide-react";
 
@@ -45,6 +46,9 @@ import {
   selectionsAtom,
   showResultsAtom,
   validationAtom,
+  timerDurationAtom,
+  timerRemainingAtom,
+  timerRunningAtom,
 } from "@/state/quiz-atoms";
 
 function normalizeQuestions(questions = []) {
@@ -114,6 +118,21 @@ function renderStatusIcon({ showAsCorrect, showAsWrong }) {
   return null;
 }
 
+function formatSeconds(seconds) {
+  const safe = Math.max(0, Math.floor(seconds ?? 0));
+  const m = Math.floor(safe / 60);
+  const s = safe % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function calculateQuizDuration(totalQuestions) {
+  const perQuestion = 40; // detik per soal
+  const minSeconds = 2 * 60;
+  const maxSeconds = 12 * 60;
+  if (!totalQuestions || Number.isNaN(totalQuestions)) return minSeconds;
+  return Math.min(maxSeconds, Math.max(minSeconds, totalQuestions * perQuestion));
+}
+
 export default function QuizPage() {
   const { status } = useSession();
   const router = useRouter();
@@ -129,6 +148,12 @@ export default function QuizPage() {
   const [score, setScore] = useAtom(scoreAtom);
   const [showResults, setShowResults] = useAtom(showResultsAtom);
   const [validation, setValidation] = useAtom(validationAtom);
+  const [timerDuration, setTimerDuration] =
+    useAtom(timerDurationAtom);
+  const [timerRemaining, setTimerRemaining] = useAtom(
+    timerRemainingAtom
+  );
+  const [timerRunning, setTimerRunning] = useAtom(timerRunningAtom);
   const [streamingText, setStreamingText] = useState("");
   const quizProgressCtrl = useFeatureProgress(setQuizProgress);
 
@@ -159,6 +184,39 @@ export default function QuizPage() {
   const videoMinutes = durationSeconds
     ? Math.round(durationSeconds / 60)
     : null;
+  const timePercent = timerDuration
+    ? Math.round(
+        (Math.max(0, timerRemaining) / timerDuration) * 100
+      )
+    : 0;
+  const formattedRemaining = formatSeconds(timerRemaining);
+
+  const finalizeQuiz = useCallback(
+    (reason) => {
+      if (!normalizedQuestions.length) return;
+      const finalScore = normalizedQuestions.reduce(
+        (acc, q, idx) => {
+          const selected = selections[idx];
+          return (
+            acc + (selected === q.correct_option_index ? 1 : 0)
+          );
+        },
+        0
+      );
+      setScore(finalScore);
+      setShowResults(true);
+      setTimerRunning(false);
+      setValidation(reason ?? "");
+    },
+    [
+      normalizedQuestions,
+      selections,
+      setScore,
+      setShowResults,
+      setTimerRunning,
+      setValidation,
+    ]
+  );
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -182,6 +240,29 @@ export default function QuizPage() {
     setScore,
     setValidation,
   ]);
+
+  useEffect(() => {
+    if (!timerRunning) return undefined;
+    const id = setInterval(() => {
+      setTimerRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(id);
+          finalizeQuiz(
+            "Waktu habis, jawaban otomatis dikunci."
+          );
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [timerRunning, setTimerRemaining, finalizeQuiz]);
+
+  useEffect(() => {
+    if (showResults) {
+      setTimerRunning(false);
+    }
+  }, [showResults, setTimerRunning]);
 
   useEffect(() => {
     if (!showResults) return;
@@ -233,6 +314,9 @@ export default function QuizPage() {
     setScore(0);
     setValidation("");
     setStreamingText("");
+    setTimerRunning(false);
+    setTimerRemaining(0);
+    setTimerDuration(0);
     quizProgressCtrl.start();
     let tokenCount = 0;
     try {
@@ -272,12 +356,22 @@ export default function QuizPage() {
           meta.duration_seconds ??
           null,
       });
+      const totalForTimer =
+        meta?.total_questions ?? questions.length;
+      const timerSec = calculateQuizDuration(totalForTimer);
+      setTimerDuration(timerSec);
+      setTimerRemaining(timerSec);
+      setTimerRunning(true);
       quizProgressCtrl.complete();
+      setStreamingText("");
     } catch (err) {
       setQuizError(
         err instanceof Error ? err.message : "Gagal membuat quiz"
       );
       setStreamingText("");
+      setTimerRunning(false);
+      setTimerRemaining(0);
+      setTimerDuration(0);
       quizProgressCtrl.fail();
     } finally {
       setQuizLoading(false);
@@ -618,6 +712,41 @@ export default function QuizPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    {timerDuration ? (
+                      <div className="space-y-2 rounded-xl border border-white/10 bg-white/10 p-3">
+                        <div className="flex items-center justify-between text-sm text-white">
+                          <span className="flex items-center gap-2 font-semibold">
+                            <Timer className="h-4 w-4 text-amber-200" />
+                            Sisa waktu
+                          </span>
+                          <span className="text-lg font-bold text-amber-100">
+                            {formattedRemaining}
+                          </span>
+                        </div>
+                        <div className="overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-2 rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-indigo-400 transition-[width] duration-300"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.max(0, timePercent)
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="text-xs text-white/60">
+                          {timerRunning
+                            ? "Timer berjalan otomatis. Jawaban dikunci saat waktu habis."
+                            : showResults
+                            ? "Waktu berakhir atau kuis selesai."
+                            : "Timer mulai setelah soal dibuat."}
+                        </p>
+                        <p className="text-[11px] text-white/50">
+                          Dialokasikan {formatSeconds(timerDuration)} untuk{" "}
+                          {totalQuestions} soal (~40 detik/soal).
+                        </p>
+                      </div>
+                    ) : null}
                     <div className="overflow-hidden rounded-full bg-white/5">
                       <div
                         className="h-2 rounded-full bg-gradient-to-r from-emerald-400 via-blue-400 to-indigo-500 transition-all"
@@ -648,20 +777,13 @@ export default function QuizPage() {
                       size="sm"
                       disabled={!allAnswered}
                       onClick={() => {
-                        const finalScore = normalizedQuestions.reduce(
-                          (acc, q, idx) => {
-                            const selected = selections[idx];
-                            return (
-                              acc +
-                              (selected === q.correct_option_index
-                                ? 1
-                                : 0)
-                            );
-                          },
-                          0
-                        );
-                        setScore(finalScore);
-                        setShowResults(true);
+                        if (!allAnswered) {
+                          setValidation(
+                            "Jawab semua soal untuk melihat skor akhir."
+                          );
+                          return;
+                        }
+                        finalizeQuiz();
                       }}
                       className="w-full bg-gradient-to-r from-[#16a34a] via-[#22c55e] to-[#10b981] text-white shadow-brand disabled:opacity-70"
                     >

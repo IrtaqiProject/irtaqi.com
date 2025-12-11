@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef } from "react";
 
 // Kendalikan progres pseudo-indeterminate saat menjalankan prompt.
-// Naik perlahan ke 90% lalu dituntaskan saat proses selesai.
+// Dibuat smooth dan lebih lambat agar tidak terasa tersendat.
 export function useFeatureProgress(setter) {
   const timerRef = useRef(null);
+  const capWhileRunning = 98; // tahan sebelum 100% sampai benar-benar selesai
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -13,32 +14,34 @@ export function useFeatureProgress(setter) {
   }, []);
 
   const start = useCallback(
-    (initialValue = 10) => {
+    (initialValue = 6) => {
       clearTimer();
       setter(Math.max(1, initialValue));
       timerRef.current = setInterval(() => {
         setter((prev) => {
-          if (prev >= 92) return prev;
-          const increment = Math.max(1, Math.round((100 - prev) * 0.06));
-          return Math.min(prev + increment, 92);
+          if (prev >= capWhileRunning) return prev;
+          // Langkah lebih kecil supaya bergerak lebih pelan tapi konsisten.
+          const gap = capWhileRunning - prev;
+          const increment = Math.max(0.15, gap * 0.035);
+          return Math.min(prev + increment, capWhileRunning);
         });
-      }, 450);
+      }, 600);
     },
-    [clearTimer, setter]
+    [capWhileRunning, clearTimer, setter]
   );
 
   const bump = useCallback(
     (floorValue = 0) => {
       setter((prev) => {
         const next = Math.max(prev, floorValue);
-        return next > 96 ? 96 : next;
+        return next > capWhileRunning ? capWhileRunning : next;
       });
     },
-    [setter]
+    [capWhileRunning, setter]
   );
 
   const complete = useCallback(
-    (resetDelay = 650) => {
+    (resetDelay = 750) => {
       clearTimer();
       setter(100);
       setTimeout(() => setter(0), resetDelay);
