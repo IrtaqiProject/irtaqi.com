@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 
-import { updateTranscriptFeatures } from "@/lib/db";
+import {
+  getTranscriptById,
+  listTranscripts,
+  saveTranscriptResult,
+  updateTranscriptFeatures,
+} from "@/lib/db";
 import { getCachedCompletion, setCachedCompletion } from "@/lib/llm-cache";
 import {
   buildMindmapPrompt,
@@ -10,6 +16,7 @@ import {
   buildSummaryPrompt,
   streamJsonCompletion,
 } from "@/lib/openai";
+import { authOptions } from "@/lib/auth";
 
 const encoder = new TextEncoder();
 
@@ -59,16 +66,82 @@ function normalizeDuration(durationSeconds) {
   return durationSeconds;
 }
 
+async function resolveOwnedTranscriptId({
+  transcriptId,
+  userId,
+  youtubeUrl,
+  videoId,
+}) {
+  if (transcriptId) {
+    const owned = await getTranscriptById(transcriptId, {
+      includeText: false,
+      userId,
+    });
+    if (owned?.id) return owned.id;
+  }
+
+  // Fallback: coba cocokkan berdasarkan videoId atau URL jika ID lama tidak ditemukan.
+  const items = await listTranscripts({ userId, limit: 120 });
+  const match = items.find((item) => {
+    if (transcriptId && item.id === transcriptId) return true;
+    if (videoId && item.video_id === videoId) return true;
+    if (youtubeUrl && item.youtube_url === youtubeUrl) return true;
+    return false;
+  });
+
+  return match?.id ?? null;
+}
+
+async function ensureTranscriptId({
+  transcriptId,
+  userId,
+  youtubeUrl,
+  videoId,
+  transcript,
+  durationSeconds,
+  prompt,
+}) {
+  const resolvedOwnedId = await resolveOwnedTranscriptId({
+    transcriptId,
+    userId,
+    youtubeUrl,
+    videoId,
+  });
+  if (resolvedOwnedId) return resolvedOwnedId;
+
+  // Jika ID tidak ditemukan (memori kosong/DB kosong), buat ulang agar fitur tetap bisa jalan.
+  if (!transcript || transcript.trim().length < 10) return null;
+  try {
+    const saved = await saveTranscriptResult({
+      videoId: videoId ?? null,
+      youtubeUrl: youtubeUrl ?? null,
+      prompt: prompt ?? "",
+      transcriptText: transcript,
+      srt: "",
+      durationSeconds: durationSeconds ?? null,
+      userId,
+    });
+    return saved?.id ?? null;
+  } catch (err) {
+    console.warn(
+      "[feature-stream] Gagal membuat transcript fallback:",
+      err instanceof Error ? err.message : err
+    );
+    return null;
+  }
+}
+
 function sendEvent(controller, event) {
   controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
 }
 
-function buildPayload(config, result, durationSeconds) {
+function buildPayload(config, result, durationSeconds, transcriptId) {
   const base = { [config.key]: result };
   if (config.includeDuration) {
     base.durationSeconds =
       durationSeconds ?? result?.meta?.duration_seconds ?? null;
   }
+  if (transcriptId) base.transcriptId = transcriptId;
   return base;
 }
 
@@ -99,7 +172,12 @@ function streamFromCachedCompletion({
 
         const parsed = JSON.parse(content);
         const result = config.extractResult(parsed);
-        const payload = buildPayload(config, result, durationSeconds);
+        const payload = buildPayload(
+          config,
+          result,
+          durationSeconds,
+          transcriptId
+        );
 
         if (transcriptId) {
           await updateTranscriptFeatures({
@@ -193,7 +271,12 @@ async function streamFromOpenAI({
         }
 
         const result = config.extractResult(parsed);
-        const payload = buildPayload(config, result, durationSeconds);
+        const payload = buildPayload(
+          config,
+          result,
+          durationSeconds,
+          transcriptId
+        );
 
         if (transcriptId) {
           await updateTranscriptFeatures({
@@ -236,7 +319,12 @@ async function streamFromOpenAI({
 
 function streamFromStub({ config, stub, durationSeconds, transcriptId }) {
   const result = config.extractResult(stub);
-  const payload = buildPayload(config, result, durationSeconds);
+  const payload = buildPayload(
+    config,
+    result,
+    durationSeconds,
+    transcriptId
+  );
   const model = stub?.model ?? "stub-no-openai-key";
   const jsonString = JSON.stringify(payload[config.key] ?? result ?? {});
   const tokens = jsonString.match(/.{1,60}/g) ?? [jsonString];
@@ -290,6 +378,14 @@ export async function POST(req) {
     );
   }
 
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
   const {
     feature,
     transcript,
@@ -320,6 +416,15 @@ export async function POST(req) {
     feature === "quiz"
       ? body.quizCount ?? decideQuizCount(resolvedDurationSeconds)
       : undefined;
+  const ensuredTranscriptId = await ensureTranscriptId({
+    transcriptId,
+    userId: session.user.id,
+    youtubeUrl,
+    videoId,
+    transcript,
+    durationSeconds: resolvedDurationSeconds,
+    prompt,
+  });
 
   const promptInput = {
     videoTitle: resolveVideoTitle(videoId, youtubeUrl),
@@ -338,7 +443,7 @@ export async function POST(req) {
       config,
       stub,
       durationSeconds: resolvedDurationSeconds,
-      transcriptId,
+      transcriptId: ensuredTranscriptId,
     });
   }
 
@@ -346,7 +451,7 @@ export async function POST(req) {
     return await streamFromOpenAI({
       config,
       promptInput,
-      transcriptId,
+      transcriptId: ensuredTranscriptId,
       durationSeconds: resolvedDurationSeconds,
     });
   } catch (err) {

@@ -1,6 +1,7 @@
 import "./globals.css";
 
 import { Providers } from "@/components/providers";
+import { UserBadgeFloating } from "@/components/user-badge";
 
 export const metadata = {
   title: "Irtaqi AI Boilerplate",
@@ -12,7 +13,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="bg-background text-foreground antialiased font-sans">
-        <Providers>{children}</Providers>
+        <Providers>
+          <UserBadgeFloating />
+          {children}
+        </Providers>
       </body>
     </html>
   );

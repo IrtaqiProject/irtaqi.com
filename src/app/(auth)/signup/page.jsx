@@ -1,6 +1,7 @@
 "use client";
 
 import { useAtom } from "jotai";
+import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { UserPlus, Mail, Lock, Loader2, ArrowLeft, CheckCircle } from "lucide-react";
 import Link from "next/link";
@@ -47,7 +48,7 @@ export default function SignupPage() {
         <CardHeader className="space-y-2">
           <CardTitle className="text-2xl font-bold">Buat akun Irtaqi</CardTitle>
           <CardDescription className="text-white/70">
-            Daftar dengan email, lalu mulai transcribe & buat quiz dari kajian.
+            Daftar dengan email atau langsung masuk lewat Google, lalu mulai transcribe & buat quiz dari kajian.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -108,6 +109,19 @@ export default function SignupPage() {
               Daftar & Masuk
             </Button>
           </form>
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/10" />
+            <span className="text-xs uppercase tracking-[0.2em] text-white/50">atau</span>
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full bg-white text-[#1b1145] hover:bg-white/90"
+            onClick={() => signIn("google", { callbackUrl })}
+          >
+            Daftar / Masuk dengan Google
+          </Button>
           <div className="flex items-center justify-between text-sm text-white/70">
             <Link href="/login" className="inline-flex items-center gap-1 font-semibold text-emerald-200">
               <ArrowLeft className="h-4 w-4" /> Kembali ke login

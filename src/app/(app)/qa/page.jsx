@@ -32,7 +32,9 @@ import {
 export default function QaPage() {
   const { status } = useSession();
   const router = useRouter();
-  const [transcriptResult] = useAtom(transcriptResultAtom);
+  const [transcriptResult, setTranscriptResult] = useAtom(
+    transcriptResultAtom
+  );
   const [prompt, setPrompt] = useAtom(qaPromptAtom);
   const [qaResult, setQaResult] = useAtom(qaResultAtom);
   const [loading, setLoading] = useAtom(qaLoadingAtom);
@@ -99,6 +101,11 @@ export default function QaPage() {
           },
         }
       );
+      if (data.transcriptId) {
+        setTranscriptResult((prev) =>
+          prev ? { ...prev, id: data.transcriptId } : prev
+        );
+      }
       setQaResult({
         sample_questions: data.qa?.sample_questions ?? [],
         model: data.model,
