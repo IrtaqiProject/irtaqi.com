@@ -1,10 +1,10 @@
 "use client";
 
+import { Suspense, useEffect } from "react";
 import { useAtom } from "jotai";
 import Link from "next/link";
 import { FileText, Loader2, PlayCircle, Rocket } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 
 import { processYoutubeTranscriptionAction } from "@/actions/transcription";
@@ -59,7 +59,7 @@ function extractVideoIdFromUrl(input) {
   );
 }
 
-export default function TranscribePage() {
+function TranscribePageContent() {
   const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -342,5 +342,21 @@ export default function TranscribePage() {
         </CardContent>
       </Card>
     </StepLayout>
+  );
+}
+
+function TranscribeFallback() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#120b34] via-[#0f0a26] to-[#0a0b1a] text-white">
+      <Loader2 className="h-6 w-6 animate-spin text-white/70" />
+    </main>
+  );
+}
+
+export default function TranscribePage() {
+  return (
+    <Suspense fallback={<TranscribeFallback />}>
+      <TranscribePageContent />
+    </Suspense>
   );
 }
