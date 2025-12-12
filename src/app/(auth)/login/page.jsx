@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useAtom } from "jotai";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -11,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { loginErrorAtom, loginFormAtom, loginLoadingAtom } from "@/state/auth-atoms";
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/transcribe";
@@ -106,5 +107,21 @@ export default function LoginPage() {
         </CardContent>
       </Card>
     </main>
+  );
+}
+
+function LoginFallback() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#1b1145] via-[#130d32] to-[#0b0820] text-white">
+      <Loader2 className="h-6 w-6 animate-spin text-white/70" />
+    </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginContent />
+    </Suspense>
   );
 }

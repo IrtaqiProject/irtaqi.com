@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useAtom } from "jotai";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -17,7 +18,7 @@ import {
   signupSuccessAtom,
 } from "@/state/auth-atoms";
 
-export default function SignupPage() {
+function SignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/transcribe";
@@ -138,5 +139,21 @@ export default function SignupPage() {
         </CardContent>
       </Card>
     </main>
+  );
+}
+
+function SignupFallback() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#1b1145] via-[#130d32] to-[#0b0820] text-white">
+      <Loader2 className="h-6 w-6 animate-spin text-white/70" />
+    </main>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<SignupFallback />}>
+      <SignupContent />
+    </Suspense>
   );
 }
