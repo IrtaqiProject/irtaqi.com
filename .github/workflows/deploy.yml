@@ -33,8 +33,8 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            bun install --frozen-lockfile
-            bun run build
+            /home/deploy/.bun/bin/bun install --frozen-lockfile
+            /home/deploy/.bun/bin/bun run build
 
             sudo systemctl restart "$SERVICE_NAME"
             sudo systemctl --no-pager --full status "$SERVICE_NAME" || true
