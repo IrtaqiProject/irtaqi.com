@@ -8,8 +8,16 @@ export async function streamFeature(feature, payload = {}, { onToken } = {}) {
 
   if (!response.ok) {
     const fallbackMessage = "Gagal memulai streaming.";
-    const message = (await response.text().catch(() => "")) || fallbackMessage;
-    throw new Error(message);
+    const rawText = (await response.text().catch(() => "")) || "";
+    if (rawText) {
+      try {
+        const parsed = JSON.parse(rawText);
+        throw new Error(parsed?.error || fallbackMessage);
+      } catch {
+        throw new Error(rawText || fallbackMessage);
+      }
+    }
+    throw new Error(fallbackMessage);
   }
 
   if (!response.body) {

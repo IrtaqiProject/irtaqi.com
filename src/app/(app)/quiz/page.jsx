@@ -31,6 +31,7 @@ import { StepLayout } from "@/components/step-layout";
 import { streamFeature } from "@/lib/feature-stream-client";
 import { useFeatureProgress } from "@/lib/use-progress";
 import { cn } from "@/lib/utils";
+import { accountAtom } from "@/state/account-atoms";
 import {
   quizErrorAtom,
   quizLoadingAtom,
@@ -144,6 +145,7 @@ export default function QuizPage() {
   const [quizLoading, setQuizLoading] = useAtom(quizLoadingAtom);
   const [quizError, setQuizError] = useAtom(quizErrorAtom);
   const [quizProgress, setQuizProgress] = useAtom(quizProgressAtom);
+  const [, setAccount] = useAtom(accountAtom);
   const [currentIndex, setCurrentIndex] = useAtom(currentIndexAtom);
   const [selections, setSelections] = useAtom(selectionsAtom);
   const [revealed, setRevealed] = useAtom(revealedAtom);
@@ -357,6 +359,7 @@ export default function QuizPage() {
           prev ? { ...prev, id: data.transcriptId } : prev
         );
       }
+      if (data?.account) setAccount(data.account);
       const questions = data.quiz?.questions ?? [];
       const meta = data.quiz?.meta ?? {};
       setQuizResult({

@@ -20,6 +20,7 @@ import {
 import { StepLayout } from "@/components/step-layout";
 import { useFeatureProgress } from "@/lib/use-progress";
 import { cn } from "@/lib/utils";
+import { accountAtom } from "@/state/account-atoms";
 import {
   errorAtom,
   loadingAtom,
@@ -70,6 +71,7 @@ function TranscribePageContent() {
   const [transcribeProgress, setTranscribeProgress] = useAtom(
     transcribeProgressAtom
   );
+  const [, setAccount] = useAtom(accountAtom);
   const [, setSummaryResult] = useAtom(summaryResultAtom);
   const [, setQaResult] = useAtom(qaResultAtom);
   const [, setMindmapResult] = useAtom(mindmapResultAtom);
@@ -149,6 +151,7 @@ function TranscribePageContent() {
         youtubeUrl,
       });
       setResult(data);
+      if (data?.account) setAccount(data.account);
       transcribeProgressCtrl.complete();
     } catch (err) {
       setError(

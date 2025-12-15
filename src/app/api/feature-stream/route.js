@@ -17,6 +17,7 @@ import {
   streamJsonCompletion,
 } from "@/lib/openai";
 import { authOptions } from "@/lib/auth";
+import { consumeUserTokens, getUserAccount } from "@/lib/user-store";
 
 const encoder = new TextEncoder();
 
@@ -135,13 +136,14 @@ function sendEvent(controller, event) {
   controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
 }
 
-function buildPayload(config, result, durationSeconds, transcriptId) {
+function buildPayload(config, result, durationSeconds, transcriptId, account) {
   const base = { [config.key]: result };
   if (config.includeDuration) {
     base.durationSeconds =
       durationSeconds ?? result?.meta?.duration_seconds ?? null;
   }
   if (transcriptId) base.transcriptId = transcriptId;
+  if (account) base.account = account;
   return base;
 }
 
@@ -159,6 +161,7 @@ function streamFromCachedCompletion({
   model,
   durationSeconds,
   transcriptId,
+  account,
 }) {
   const resolvedModel = model ?? "openai-cache";
   const tokens = content.match(/.{1,60}/g) ?? [content];
@@ -176,7 +179,8 @@ function streamFromCachedCompletion({
           config,
           result,
           durationSeconds,
-          transcriptId
+          transcriptId,
+          account
         );
 
         if (transcriptId) {
@@ -217,6 +221,7 @@ async function streamFromOpenAI({
   promptInput,
   transcriptId,
   durationSeconds,
+  account,
 }) {
   const { systemPrompt, userContent } = config.buildPrompt(promptInput);
   const { key, completion: cachedCompletion } = await getCachedCompletion({
@@ -236,6 +241,7 @@ async function streamFromOpenAI({
         model: cachedCompletion?.model ?? "openai-cache",
         durationSeconds,
         transcriptId,
+        account,
       });
     } catch {
       // Cached value korup, abaikan dan lanjutkan ke LLM.
@@ -275,7 +281,8 @@ async function streamFromOpenAI({
           config,
           result,
           durationSeconds,
-          transcriptId
+          transcriptId,
+          account
         );
 
         if (transcriptId) {
@@ -317,13 +324,14 @@ async function streamFromOpenAI({
   });
 }
 
-function streamFromStub({ config, stub, durationSeconds, transcriptId }) {
+function streamFromStub({ config, stub, durationSeconds, transcriptId, account }) {
   const result = config.extractResult(stub);
   const payload = buildPayload(
     config,
     result,
     durationSeconds,
-    transcriptId
+    transcriptId,
+    account
   );
   const model = stub?.model ?? "stub-no-openai-key";
   const jsonString = JSON.stringify(payload[config.key] ?? result ?? {});
@@ -411,6 +419,25 @@ export async function POST(req) {
     );
   }
 
+  const tokenCost = 2; // Ringkasan, Q&A, mindmap, dan quiz masing-masing butuh 2 token.
+  let account = null;
+  try {
+    consumeUserTokens(session.user.id, tokenCost, {
+      email: session.user.email,
+      name: session.user.name,
+    });
+    account = getUserAccount(session.user.id, {
+      email: session.user.email,
+      name: session.user.name,
+    });
+  } catch (err) {
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Token habis. Langganan Plus, Pro, atau Ultra untuk lanjut.";
+    return NextResponse.json({ error: message }, { status: 402 });
+  }
+
   const resolvedDurationSeconds = rawDurationSeconds ?? null;
   const resolvedQuizCount =
     feature === "quiz"
@@ -444,6 +471,7 @@ export async function POST(req) {
       stub,
       durationSeconds: resolvedDurationSeconds,
       transcriptId: ensuredTranscriptId,
+      account,
     });
   }
 
@@ -453,6 +481,7 @@ export async function POST(req) {
       promptInput,
       transcriptId: ensuredTranscriptId,
       durationSeconds: resolvedDurationSeconds,
+      account,
     });
   } catch (err) {
     const errorMessage =

@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
+import { AccountBadge } from "@/components/account-badge";
 
 const steps = [
   { key: "transcribe", label: "Transcribe", href: "/transcribe", step: 1 },
@@ -25,27 +26,30 @@ export function StepLayout({ activeKey, title, subtitle, children }) {
       </div>
 
       <div className="container relative max-w-5xl space-y-8 py-12">
-        <nav className="flex justify-center">
-          <div className="flex flex-wrap gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
-            {steps.map((item) => {
-              const isActive = item.key === activeKey;
-              return (
-                <Link
-                  key={item.key}
-                  href={item.href}
-                  className={cn(
-                    "rounded-full border px-4 py-2 text-sm font-semibold transition",
-                    isActive
-                      ? "border-[#7c8dff] bg-[#6f7bff] text-white shadow-[0_8px_24px_rgba(111,123,255,0.45)]"
-                      : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white",
-                  )}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
+        <div className="flex flex-col items-center gap-4">
+          <nav className="flex justify-center">
+            <div className="flex flex-wrap gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
+              {steps.map((item) => {
+                const isActive = item.key === activeKey;
+                return (
+                  <Link
+                    key={item.key}
+                    href={item.href}
+                    className={cn(
+                      "rounded-full border px-4 py-2 text-sm font-semibold transition",
+                      isActive
+                        ? "border-[#7c8dff] bg-[#6f7bff] text-white shadow-[0_8px_24px_rgba(111,123,255,0.45)]"
+                        : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white",
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+          <AccountBadge />
+        </div>
 
         <div className="space-y-3 text-center">
           <p className="text-sm font-semibold text-[#8ee1c2]">{stepLabel}</p>

@@ -8,14 +8,25 @@ import { Mail, Lock, LogIn, Loader2, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { loginErrorAtom, loginFormAtom, loginLoadingAtom } from "@/state/auth-atoms";
+import {
+  loginErrorAtom,
+  loginFormAtom,
+  loginLoadingAtom,
+} from "@/state/auth-atoms";
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/transcribe";
+  const callbackUrl =
+    searchParams.get("callbackUrl") || "/transcribe";
   const [form, setForm] = useAtom(loginFormAtom);
   const [loading, setLoading] = useAtom(loginLoadingAtom);
   const [error, setError] = useAtom(loginErrorAtom);
@@ -41,7 +52,9 @@ function LoginContent() {
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#1b1145] via-[#130d32] to-[#0b0820] px-4 text-white">
       <Card className="w-full max-w-md border-white/10 bg-white/5 text-white backdrop-blur">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl font-bold">Masuk ke Irtaqi</CardTitle>
+          <CardTitle className="text-2xl font-bold">
+            Masuk ke RingkasKajianAi.com
+          </CardTitle>
           <CardDescription className="text-white/70">
             Gunakan akun email/password atau login dengan Google.
           </CardDescription>
@@ -56,7 +69,9 @@ function LoginContent() {
                   type="email"
                   required
                   value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, email: e.target.value })
+                  }
                   className="w-full bg-transparent text-sm text-white placeholder:text-white/50 focus:outline-none"
                   placeholder="you@email.com"
                 />
@@ -70,25 +85,37 @@ function LoginContent() {
                   type="password"
                   required
                   value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
                   className="w-full bg-transparent text-sm text-white placeholder:text-white/50 focus:outline-none"
                   placeholder="••••••••"
                 />
               </div>
             </label>
-            {error ? <p className="text-sm text-amber-300">{error}</p> : null}
+            {error ? (
+              <p className="text-sm text-amber-300">{error}</p>
+            ) : null}
             <Button
               type="submit"
-              className={cn("w-full bg-gradient-to-r from-[#8b5cf6] to-[#4f46e5] text-white")}
+              className={cn(
+                "w-full bg-gradient-to-r from-[#8b5cf6] to-[#4f46e5] text-white"
+              )}
               disabled={loading}
             >
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
+              {loading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <LogIn className="mr-2 h-4 w-4" />
+              )}
               Masuk
             </Button>
           </form>
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-white/10" />
-            <span className="text-xs uppercase tracking-[0.2em] text-white/50">atau</span>
+            <span className="text-xs uppercase tracking-[0.2em] text-white/50">
+              atau
+            </span>
             <div className="h-px flex-1 bg-white/10" />
           </div>
           <Button
@@ -100,7 +127,10 @@ function LoginContent() {
           </Button>
           <div className="flex items-center justify-between text-sm text-white/70">
             <span>Belum punya akun?</span>
-            <Link href="/signup" className="inline-flex items-center gap-1 font-semibold text-emerald-200">
+            <Link
+              href="/signup"
+              className="inline-flex items-center gap-1 font-semibold text-emerald-200"
+            >
               Daftar sekarang <ArrowRight className="h-4 w-4" />
             </Link>
           </div>

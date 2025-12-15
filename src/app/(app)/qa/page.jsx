@@ -28,6 +28,7 @@ import {
   qaResultAtom,
   transcriptResultAtom,
 } from "@/state/transcribe-atoms";
+import { accountAtom } from "@/state/account-atoms";
 
 export default function QaPage() {
   const { status } = useSession();
@@ -42,6 +43,7 @@ export default function QaPage() {
   const [qaProgress, setQaProgress] = useAtom(qaProgressAtom);
   const [streamingText, setStreamingText] = useState("");
   const qaProgressCtrl = useFeatureProgress(setQaProgress);
+  const [, setAccount] = useAtom(accountAtom);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -106,6 +108,7 @@ export default function QaPage() {
           prev ? { ...prev, id: data.transcriptId } : prev
         );
       }
+      if (data?.account) setAccount(data.account);
       setQaResult({
         sample_questions: data.qa?.sample_questions ?? [],
         model: data.model,

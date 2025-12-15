@@ -28,6 +28,7 @@ import {
   summaryResultAtom,
   transcriptResultAtom,
 } from "@/state/transcribe-atoms";
+import { accountAtom } from "@/state/account-atoms";
 
 export default function SummaryPage() {
   const { status } = useSession();
@@ -43,6 +44,7 @@ export default function SummaryPage() {
   const [summaryProgress, setSummaryProgress] = useAtom(
     summaryProgressAtom
   );
+  const [, setAccount] = useAtom(accountAtom);
   const [streamingText, setStreamingText] = useState("");
   const summaryProgressCtrl = useFeatureProgress(setSummaryProgress);
 
@@ -111,6 +113,7 @@ export default function SummaryPage() {
           prev ? { ...prev, id: data.transcriptId } : prev
         );
       }
+      if (data?.account) setAccount(data.account);
       setSummaryResult({ ...data.summary, model: data.model });
       summaryProgressCtrl.complete();
       setStreamingText("");

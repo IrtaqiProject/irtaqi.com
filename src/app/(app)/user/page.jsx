@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useAtom } from "jotai";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -24,6 +25,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  accountAtom,
+  accountErrorAtom,
+  accountLoadingAtom,
+} from "@/state/account-atoms";
 
 const DEFAULT_AVATAR = "/avatar-default.svg";
 
@@ -36,6 +42,27 @@ const stageClasses = {
   pending: "border-white/20 bg-white/5 text-white/70",
   todo: "border-white/20 bg-white/5 text-white/70",
 };
+
+const PLAN_CHOICES = [
+  {
+    id: "plus",
+    label: "Plus",
+    perks: ["Akses semua fitur", "Prioritas reguler"],
+    price: "Mulai belajar serius",
+  },
+  {
+    id: "pro",
+    label: "Pro",
+    perks: ["Prioritas cepat", "Support prioritas"],
+    price: "Untuk pengguna aktif",
+  },
+  {
+    id: "ultra",
+    label: "Ultra",
+    perks: ["Prioritas tertinggi", "Pemakaian tanpa batas"],
+    price: "Skala intensif",
+  },
+];
 
 function StageBadge({ label, state = "pending" }) {
   const normalizedState =
@@ -356,9 +383,15 @@ function buildTimelineEntries(items) {
 export default function UserPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [account, setAccount] = useAtom(accountAtom);
+  const [accountLoading, setAccountLoading] = useAtom(accountLoadingAtom);
+  const [accountError, setAccountError] = useAtom(accountErrorAtom);
   const [transcripts, setTranscripts] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState("");
+  const [plans, setPlans] = useState([]);
+  const [subscribeLoading, setSubscribeLoading] = useState("");
+  const [subscribeMessage, setSubscribeMessage] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -402,6 +435,73 @@ export default function UserPage() {
     };
   }, [status]);
 
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    if (accountLoading || account) return;
+    let active = true;
+
+    const loadAccount = async () => {
+      setAccountLoading(true);
+      setAccountError("");
+      try {
+        const res = await fetch("/api/account", { cache: "no-store" });
+        const json = await res.json();
+        if (!active) return;
+        if (!res.ok) {
+          throw new Error(json?.error || "Gagal memuat akun.");
+        }
+        setAccount(json.account ?? null);
+        setPlans(json.plans ?? []);
+      } catch (err) {
+        if (!active) return;
+        setAccountError(
+          err instanceof Error ? err.message : "Tidak bisa memuat akun."
+        );
+      } finally {
+        if (active) setAccountLoading(false);
+      }
+    };
+
+    loadAccount();
+    return () => {
+      active = false;
+    };
+  }, [
+    status,
+    account,
+    accountLoading,
+    setAccount,
+    setAccountError,
+    setAccountLoading,
+  ]);
+
+  const handleSubscribe = async (planId) => {
+    setSubscribeLoading(planId);
+    setSubscribeMessage("");
+    setAccountError("");
+    try {
+      const res = await fetch("/api/account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: planId }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error || "Gagal mengaktifkan langganan.");
+      }
+      setAccount(json.account ?? null);
+      setPlans(json.plans ?? []);
+      const activePlan = json.account?.subscriptionLabel || planId;
+      setSubscribeMessage(`Langganan ${activePlan} aktif.`);
+    } catch (err) {
+      setAccountError(
+        err instanceof Error ? err.message : "Gagal memproses langganan."
+      );
+    } finally {
+      setSubscribeLoading("");
+    }
+  };
+
   if (status === "loading") {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#120b34] via-[#0f0a26] to-[#0a0b1a] text-white">
@@ -420,7 +520,7 @@ export default function UserPage() {
     );
   }
 
-  const name = session?.user?.name ?? "Pengguna Irtaqi";
+  const name = session?.user?.name ?? "Pengguna RingkasKajianAi.com";
   const email = session?.user?.email ?? "user@email.com";
   const userId = session?.user?.id ?? "demo-user";
 
@@ -435,6 +535,13 @@ export default function UserPage() {
   const qaReady = transcripts.filter((item) => item.qa).length;
   const completionRate = percent(completedVideos, totalVideos);
   const quizRate = percent(quizReady, totalVideos);
+  const planOptions = plans.length ? plans : PLAN_CHOICES;
+  const tokenLabel = account?.isSubscribed
+    ? `${account.subscriptionLabel ?? "Langganan aktif"} - Unlimited`
+    : `${account?.tokens ?? 0}/${account?.maxTokens ?? 20} token`;
+  const tokenShort = account?.isSubscribed
+    ? account.subscriptionLabel ?? "Langganan"
+    : `${account?.tokens ?? 0} token`;
   const preference = derivePreferenceProfile({
     name,
     totalVideos,
@@ -562,7 +669,26 @@ export default function UserPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card className="border-white/10 bg-white/5 text-white shadow-lg">
+            <CardHeader className="pb-3">
+              <CardTitle>Token & paket</CardTitle>
+              <CardDescription className="text-white/70">
+                1 token untuk transcript, 2 token untuk Summary/QA/Mindmap/Quiz.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-3xl font-bold">
+                  {accountLoading ? "..." : tokenShort}
+                </p>
+                <p className="text-xs text-white/60">
+                  {accountLoading ? "Memuat akun..." : tokenLabel}
+                </p>
+              </div>
+              <Sparkles className="h-6 w-6 text-amber-300" />
+            </CardContent>
+          </Card>
           <Card className="border-white/10 bg-white/5 text-white shadow-lg">
             <CardHeader className="pb-3">
               <CardTitle>Video ditranscribe</CardTitle>
@@ -609,6 +735,66 @@ export default function UserPage() {
             </CardContent>
           </Card>
         </div>
+
+        <Card className="border-white/10 bg-white/5 text-white shadow-xl">
+          <CardHeader>
+            <CardTitle>Langganan & token</CardTitle>
+            <CardDescription className="text-white/70">
+              Free: 20 token. Transcript 1 token, fitur lain 2 token. Jika habis, upgrade ke Plus, Pro, atau Ultra.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {accountError ? (
+              <div className="rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-sm text-amber-50">
+                {accountError}
+              </div>
+            ) : null}
+            {subscribeMessage ? (
+              <div className="rounded-xl border border-emerald-300/40 bg-emerald-300/10 px-3 py-2 text-sm text-emerald-50">
+                {subscribeMessage}
+              </div>
+            ) : null}
+            <div className="grid gap-3 md:grid-cols-3">
+              {planOptions.map((plan) => {
+                const isCurrent = account?.subscriptionTier === plan.id;
+                return (
+                  <div
+                    key={plan.id}
+                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-lg font-semibold text-white">
+                        {plan.label}
+                      </p>
+                      {isCurrent ? (
+                        <span className="rounded-full bg-emerald-300/20 px-2 py-1 text-xs font-semibold text-emerald-100">
+                          Aktif
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-sm text-white/70">{plan.price}</p>
+                    <ul className="mt-2 space-y-1 text-xs text-white/70">
+                      {(plan.perks ?? []).map((perk) => (
+                        <li key={perk}>• {perk}</li>
+                      ))}
+                    </ul>
+                    <Button
+                      className="mt-3 w-full bg-white/10 text-white hover:bg-white/20"
+                      disabled={isCurrent || subscribeLoading === plan.id}
+                      onClick={() => handleSubscribe(plan.id)}
+                    >
+                      {isCurrent
+                        ? "Paket aktif"
+                        : subscribeLoading === plan.id
+                          ? "Memproses..."
+                          : `Upgrade ke ${plan.label}`}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-4 lg:grid-cols-3">
           <Card className="border-white/10 bg-white/5 text-white shadow-xl lg:col-span-2">
