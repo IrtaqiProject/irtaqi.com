@@ -167,6 +167,25 @@ function parseTtml(ttml) {
   return segments;
 }
 
+function parseSubtitleBody(subtitle, body) {
+  if (subtitle.ext === "vtt") {
+    return parseVtt(body);
+  }
+  if (subtitle.ext === "srt") {
+    return parseSrt(body);
+  }
+  if (subtitle.ext === "json3" || subtitle.ext?.startsWith("srv")) {
+    return parseJson3(body);
+  }
+  if (subtitle.ext === "ttml") {
+    return parseTtml(body);
+  }
+
+  let segments = parseVtt(body);
+  if (!segments.length) segments = parseSrt(body);
+  return segments;
+}
+
 async function runYtDlpJson(url, lang) {
   try {
     const args = [
@@ -194,24 +213,30 @@ async function runYtDlpJson(url, lang) {
   }
 }
 
-function pickSubtitleTrack(info, langs) {
+function pickSubtitleTrack(info, langs, { sourcePreference = ["subtitles", "automatic_captions"] } = {}) {
   const preferExt = ["vtt", "srt", "ttml", "srv3", "srv2", "srv1", "json3"];
-  const uniqueLangs = [...new Set(langs)];
+  const uniqueLangs = [...new Set(langs)].filter(Boolean);
+  const preferredSources =
+    sourcePreference?.length > 0 ? sourcePreference : ["subtitles", "automatic_captions"];
 
   for (const lang of uniqueLangs) {
     const variants = [lang, lang?.split("-")?.[0]].filter(Boolean);
     for (const variant of variants) {
       const candidates = [];
-      const subs = info?.subtitles?.[variant] ?? [];
-      const autos = info?.automatic_captions?.[variant] ?? [];
-      for (const entry of [...subs, ...autos]) {
-        if (!entry?.url) continue;
-        candidates.push({
-          url: entry.url,
-          lang: variant,
-          ext: entry.ext,
-          source: subs.includes(entry) ? "subtitles" : "automatic_captions",
-        });
+      for (const source of preferredSources) {
+        const entries =
+          source === "subtitles"
+            ? info?.subtitles?.[variant] ?? []
+            : info?.automatic_captions?.[variant] ?? [];
+        for (const entry of entries) {
+          if (!entry?.url) continue;
+          candidates.push({
+            url: entry.url,
+            lang: variant,
+            ext: entry.ext,
+            source,
+          });
+        }
       }
       if (candidates.length) {
         candidates.sort((a, b) => preferExt.indexOf(a.ext) - preferExt.indexOf(b.ext));
@@ -252,72 +277,90 @@ export async function fetchYoutubeTranscript(videoId, { lang = "id" } = {}) {
   };
 
   const url = `https://www.youtube.com/watch?v=${videoId}`;
-  const indonesianLangs = ["id", "id-ID", "id-id", "in"];
-    const langPrefs = [...new Set([lang, lang?.split("-")?.[0], ...indonesianLangs])].filter(Boolean);
+  const baseIndoLangs = ["id", "id-ID", "id-id", "in"];
+  const indoLangs = [...new Set([lang, lang?.split("-")?.[0], ...baseIndoLangs])]
+    .filter((code) => code && (code.toLowerCase().startsWith("id") || code === "in"));
+  const englishFallbackLangs = ["en", "en-US", "en-GB"];
+
+  const attempts = [
+    {
+      label: "Subtitle manual Indonesia",
+      langs: indoLangs.length ? indoLangs : baseIndoLangs,
+      sourcePreference: ["subtitles"],
+      requestLang: indoLangs[0] ?? "id",
+    },
+    {
+      label: "Auto subtitle Indonesia",
+      langs: indoLangs.length ? indoLangs : baseIndoLangs,
+      sourcePreference: ["automatic_captions"],
+      requestLang: indoLangs[0] ?? "id",
+    },
+    {
+      label: "Fallback bahasa Inggris",
+      langs: englishFallbackLangs,
+      sourcePreference: ["subtitles", "automatic_captions"],
+      requestLang: englishFallbackLangs[0] ?? "en",
+    },
+  ];
 
   let lastError = null;
+  const infoCache = new Map();
 
-  for (const pref of langPrefs) {
+  const getInfo = async (preferredLang) => {
+    const cacheKey = preferredLang || "default";
+    if (infoCache.has(cacheKey)) return infoCache.get(cacheKey);
+    const info = await runYtDlpJson(url, preferredLang);
+    infoCache.set(cacheKey, info);
+    return info;
+  };
+
+  for (const attempt of attempts) {
     try {
-      const info = await runYtDlpJson(url, pref);
-        const available = listSubtitleLangs(info);
-        const indoAvailable = available.filter((code) => code?.toLowerCase().startsWith("id") || code === "in");
-        // Only try Indonesian-prefixed tracks; avoid unrelated langs (e.g., zu) to reduce 429s and wrong language pulls.
-        const trialLangs = [...new Set([pref, ...indoAvailable])].filter(Boolean);
+      const info = await getInfo(attempt.requestLang);
+      const available = listSubtitleLangs(info);
+      const subtitle = pickSubtitleTrack(info, attempt.langs, {
+        sourcePreference: attempt.sourcePreference,
+      });
 
-      for (const trial of trialLangs) {
-        const subtitle = pickSubtitleTrack(info, [trial]);
-        if (!subtitle) {
-          lastError = new Error(
-            `Subtitle/auto-caption Bahasa Indonesia tidak tersedia. Subtitle tersedia: ${available.join(", ") || "-"}.`,
-          );
-          continue;
-        }
-
-        const res = await fetch(subtitle.url, {
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
-            Referer: url,
-            "Accept-Language": "id,en;q=0.9",
-          },
-        });
-        if (!res.ok) {
-          lastError = new Error(`Gagal mengunduh subtitle ${trial} (${res.status}).`);
-          continue;
-        }
-
-        const body = await res.text();
-        let segments = [];
-
-        if (subtitle.ext === "vtt") {
-          segments = parseVtt(body);
-        } else if (subtitle.ext === "srt") {
-          segments = parseSrt(body);
-        } else if (subtitle.ext === "json3" || subtitle.ext?.startsWith("srv")) {
-          segments = parseJson3(body);
-        } else if (subtitle.ext === "ttml") {
-          segments = parseTtml(body);
-        } else {
-          segments = parseVtt(body);
-          if (!segments.length) segments = parseSrt(body);
-        }
-
-        if (!segments || !segments.length) {
-          lastError = new Error(
-            `Subtitle/SRT kosong atau gagal diparse untuk bahasa ${trial} (ext ${subtitle.ext || "unknown"}).`,
-          );
-          continue;
-        }
-
-        return {
-          videoId,
-          lang: subtitle.lang,
-          segments,
-          text: segmentsToPlainText(segments),
-          srt: segmentsToSrt(segments),
-        };
+      if (!subtitle) {
+        lastError = new Error(
+          `${attempt.label} tidak tersedia. Subtitle tersedia: ${available.join(", ") || "-"}.`,
+        );
+        continue;
       }
+
+      const res = await fetch(subtitle.url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+          Referer: url,
+          "Accept-Language": subtitle.lang ? `${subtitle.lang},id;q=0.9,en;q=0.8` : "id,en;q=0.9",
+        },
+      });
+      if (!res.ok) {
+        lastError = new Error(`Gagal mengunduh subtitle ${subtitle.lang || "unknown"} (${res.status}).`);
+        continue;
+      }
+
+      const body = await res.text();
+      const segments = parseSubtitleBody(subtitle, body);
+
+      if (!segments || !segments.length) {
+        lastError = new Error(
+          `${attempt.label} kosong atau gagal diparse untuk bahasa ${subtitle.lang || "unknown"} (ext ${
+            subtitle.ext || "unknown"
+          }).`,
+        );
+        continue;
+      }
+
+      return {
+        videoId,
+        lang: subtitle.lang,
+        segments,
+        text: segmentsToPlainText(segments),
+        srt: segmentsToSrt(segments),
+      };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
     }
