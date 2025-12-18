@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import OpenAI from "openai";
 
 import { getCachedCompletion, setCachedCompletion } from "./llm-cache";
@@ -26,6 +29,44 @@ export async function transcribeAudioStub(source, prompt) {
       prompt ? ` with prompt "${prompt}"` : ""
     }.`,
   };
+}
+
+export async function transcribeAudioFile(filePath, { prompt, language } = {}) {
+  if (!filePath) {
+    throw new Error("Path audio tidak ditemukan untuk transkripsi.");
+  }
+
+  const resolvedPath = path.resolve(filePath);
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error("Berkas audio tidak ditemukan untuk transkripsi.");
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    return transcribeAudioStub(resolvedPath, prompt);
+  }
+
+  try {
+    const client = getOpenAIClient();
+    const model = process.env.OPENAI_TRANSCRIPTION_MODEL ?? "whisper-1";
+    const response = await client.audio.transcriptions.create({
+      file: fs.createReadStream(resolvedPath),
+      model,
+      prompt,
+      language,
+      temperature: 0,
+      response_format: "json",
+    });
+
+    const text = response?.text ?? "";
+    if (!text.trim()) {
+      throw new Error("OpenAI mengembalikan teks kosong saat transkripsi audio.");
+    }
+
+    return { text, model };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Transkripsi audio OpenAI gagal: ${message}`);
+  }
 }
 
 export function buildStubInsights(

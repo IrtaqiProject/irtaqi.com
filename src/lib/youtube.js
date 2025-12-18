@@ -1,5 +1,10 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+
+import { transcribeAudioFile } from "./openai";
 
 const API_BASE = "https://www.googleapis.com/youtube/v3";
 const exec = promisify(execFile);
@@ -213,6 +218,56 @@ async function runYtDlpJson(url, lang) {
   }
 }
 
+async function downloadYoutubeAudio(url) {
+  try {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "yt-audio-"));
+    const outputTemplate = path.join(tempDir, "audio.%(ext)s");
+    const args = ["--no-playlist", "-f", "bestaudio/best", "-o", outputTemplate, url];
+
+    if (process.env.YTDLP_COOKIES_PATH) {
+      args.splice(-1, 0, "--cookies", process.env.YTDLP_COOKIES_PATH);
+    }
+
+    await exec(YTDLP_BIN, args);
+    const files = await fs.readdir(tempDir);
+    const audioFile = files.find((name) => name.startsWith("audio."));
+    if (!audioFile) {
+      throw new Error("File audio tidak ditemukan setelah proses unduh.");
+    }
+
+    const audioPath = path.join(tempDir, audioFile);
+    await fs.access(audioPath);
+
+    return { audioPath, tempDir };
+  } catch (err) {
+    if (err?.code === "ENOENT") {
+      throw new Error("yt-dlp tidak ditemukan. Install yt-dlp atau set YTDLP_PATH.");
+    }
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    const message = rawMessage?.includes("ffprobe and ffmpeg not found")
+      ? "Gagal mengunduh audio YouTube: ffmpeg/ffprobe tidak ditemukan. Install ffmpeg atau set --ffmpeg-location."
+      : rawMessage;
+    throw new Error(`Gagal mengunduh audio YouTube: ${message}`);
+  }
+}
+
+function buildSegmentsFromFullText(text, durationSeconds) {
+  const wordCount = text?.split(/\s+/)?.filter(Boolean)?.length ?? 0;
+  const estimatedDuration = Math.max(5, Math.ceil(wordCount / 2)); // ~2 kata/detik
+  const duration =
+    typeof durationSeconds === "number" && Number.isFinite(durationSeconds) && durationSeconds > 0
+      ? durationSeconds
+      : estimatedDuration;
+
+  return [
+    {
+      start: 0,
+      duration,
+      text: text ?? "",
+    },
+  ];
+}
+
 function pickSubtitleTrack(info, langs, { sourcePreference = ["subtitles", "automatic_captions"] } = {}) {
   const preferExt = ["vtt", "srt", "ttml", "srv3", "srv2", "srv1", "json3"];
   const uniqueLangs = [...new Set(langs)].filter(Boolean);
@@ -364,6 +419,44 @@ export async function fetchYoutubeTranscript(videoId, { lang = "id" } = {}) {
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
     }
+  }
+
+  try {
+    const preferredLang = indoLangs[0] ?? "id";
+    const info =
+      infoCache.get(preferredLang) ?? infoCache.get("default") ?? (await getInfo(preferredLang));
+    const durationSeconds =
+      typeof info?.duration === "number"
+        ? info.duration
+        : Number.isFinite(Number(info?.duration))
+          ? Number(info.duration)
+          : null;
+
+    const { audioPath, tempDir } = await downloadYoutubeAudio(url);
+    try {
+      const transcription = await transcribeAudioFile(audioPath, {
+        prompt: "Transkripsi manual dari audio YouTube.",
+        language: preferredLang,
+      });
+
+      const text = transcription?.text?.trim() ?? "";
+      if (text) {
+        const segments = buildSegmentsFromFullText(text, durationSeconds);
+        return {
+          videoId,
+          lang: preferredLang,
+          segments,
+          text,
+          srt: segmentsToSrt(segments),
+        };
+      }
+
+      lastError = new Error("Transkripsi OpenAI mengembalikan teks kosong.");
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  } catch (err) {
+    lastError = err instanceof Error ? err : new Error(String(err));
   }
 
   console.warn(
