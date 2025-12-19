@@ -10,8 +10,9 @@ import {
   generateQuizFromTranscript,
   generateSummaryFromTranscript,
   transcribeAudioStub,
+  transcribeAudioWithWhisper,
 } from "@/lib/openai";
-import { extractVideoId, fetchYoutubeTranscript } from "@/lib/youtube";
+import { downloadYoutubeAudio, extractVideoId } from "@/lib/youtube";
 import { authOptions } from "@/lib/auth";
 import { consumeUserTokens, getUserAccount } from "@/lib/user-store";
 
@@ -24,9 +25,14 @@ function estimateDurationSeconds(segments) {
   const seconds = segments.reduce((max, seg) => {
     const start = Number(seg?.start ?? 0);
     const duration = Number(seg?.duration ?? 0);
-    return Math.max(max, start + duration);
+    const end =
+      Number.isFinite(duration) && duration > 0
+        ? start + duration
+        : Number(seg?.end ?? start);
+    return Math.max(max, end);
   }, 0);
-  return Math.round(seconds);
+  const rounded = Math.round(seconds);
+  return Number.isFinite(rounded) ? rounded : null;
 }
 
 function decideQuizCount(durationSeconds) {
@@ -37,6 +43,18 @@ function decideQuizCount(durationSeconds) {
   if (minutes < 60) return 25;
   if (minutes > 120) return 30;
   return 25; // default untuk 60–120 menit
+}
+
+async function transcribeYoutubeAudio(videoId, { prompt } = {}) {
+  const download = await downloadYoutubeAudio(videoId);
+  try {
+    return await transcribeAudioWithWhisper(download.filePath, {
+      prompt,
+      language: "id",
+    });
+  } finally {
+    await download?.cleanup?.().catch(() => {});
+  }
 }
 
 export async function processYoutubeTranscriptionAction(input) {
@@ -63,8 +81,24 @@ export async function processYoutubeTranscriptionAction(input) {
     throw new Error("URL YouTube tidak valid");
   }
 
-  const transcript = await fetchYoutubeTranscript(videoId);
-  const durationSeconds = estimateDurationSeconds(transcript.segments);
+  let transcription = null;
+  try {
+    transcription = await transcribeYoutubeAudio(videoId);
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Proses transcribe gagal.";
+    throw new Error(`Gagal memproses audio YouTube: ${message}`);
+  }
+
+  if (!transcription?.text) {
+    throw new Error("Hasil transcribe kosong. Coba ulangi.");
+  }
+
+  const durationSeconds =
+    transcription?.durationSeconds ??
+    estimateDurationSeconds(transcription?.segments ?? []) ??
+    null;
+
   consumeUserTokens(session.user.id, 1, {
     email: session.user.email,
     name: session.user.name,
@@ -78,9 +112,10 @@ export async function processYoutubeTranscriptionAction(input) {
     videoId,
     youtubeUrl: parsed.data.youtubeUrl,
     prompt: "",
-    transcriptText: transcript.text,
-    srt: transcript.srt,
+    transcriptText: transcription?.text ?? "",
+    srt: transcription?.srt ?? "",
     durationSeconds,
+    model: transcription?.model ?? null,
     userId: session.user.id,
   });
 
@@ -88,11 +123,11 @@ export async function processYoutubeTranscriptionAction(input) {
     id: saved?.id ?? null,
     videoId,
     youtubeUrl: parsed.data.youtubeUrl,
-    transcript: transcript.text,
-    srt: transcript.srt,
-    model: null,
+    transcript: transcription?.text ?? "",
+    srt: transcription?.srt ?? "",
+    model: transcription?.model ?? null,
     createdAt: saved?.created_at ?? null,
-    lang: transcript.lang,
+    lang: transcription?.lang ?? transcription?.language ?? null,
     durationSeconds,
     account,
   };
@@ -110,6 +145,11 @@ export async function transcribeDirectAction(input) {
   }
 
   const { audioUrl, prompt } = parsed.data;
+  const youtubeId = extractVideoId(audioUrl);
+  if (youtubeId) {
+    return transcribeYoutubeAudio(youtubeId, { prompt });
+  }
+
   return transcribeAudioStub(audioUrl, prompt);
 }
 
