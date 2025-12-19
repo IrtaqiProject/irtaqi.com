@@ -89,6 +89,8 @@ export async function processYoutubeTranscriptionAction(input) {
     videoId,
     youtubeUrl: parsed.data.youtubeUrl,
     transcript: transcript.text,
+    paragraphs: transcript.paragraphs ?? [],
+    vtt: transcript.vtt ?? null,
     srt: transcript.srt,
     model: null,
     createdAt: saved?.created_at ?? null,

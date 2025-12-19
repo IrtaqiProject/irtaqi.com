@@ -9,6 +9,45 @@ import { transcribeAudioFile } from "./openai";
 const API_BASE = "https://www.googleapis.com/youtube/v3";
 const exec = promisify(execFile);
 const YTDLP_BIN = process.env.YTDLP_PATH || "yt-dlp";
+const MIN_CUE_DURATION = 0.2; // 200ms
+const MERGE_GAP_THRESHOLD = 0.8; // seconds
+const OVERLAP_GAP_THRESHOLD = 1.2; // seconds
+const STOPWORDS = new Set([
+  "dan",
+  "yang",
+  "iya",
+  "ya",
+  "oh",
+  "lah",
+  "sih",
+  "deh",
+  "kok",
+  "gitu",
+  "atau",
+  "jadi",
+  "nah",
+  "hmm",
+  "emm",
+  "eh",
+  "uh",
+  "oke",
+  "okay",
+  "ayo",
+  "aja",
+  "udah",
+  "yaudah",
+  "itu",
+  "banget",
+  "enggak",
+  "nggak",
+  "ngga",
+  "tidak",
+  "iyaa",
+  "yaaa",
+  "right",
+  "yeah",
+  "yup",
+]);
 
 export function extractVideoId(input) {
   const urlIdMatch = input.match(/[?&]v=([^&#]+)/)?.[1];
@@ -49,8 +88,108 @@ function toSrtTimestamp(seconds) {
   return `${hh}:${mm}:${ss},${ms}`;
 }
 
-function segmentsToSrt(segments) {
-  return segments
+function decodeEntities(text = "") {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'");
+}
+
+function cleanCueText(text = "") {
+  const decoded = decodeEntities(text);
+  return decoded
+    .replace(/\r/g, " ")
+    .replace(/<\/?c[^>]*>/gi, " ") // buang tag <c>...</c>
+    .replace(/<\d{2}:\d{2}:\d{2}[.,]\d{3}>/g, " ") // buang inline timestamp
+    .replace(/<[^>]+>/g, " ") // buang tag html/vtt lainnya
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function filterNoiseSegments(segments) {
+  return (segments ?? []).filter((seg) => {
+    const duration = Math.max(0, Number(seg?.duration ?? 0));
+    if (duration < MIN_CUE_DURATION) return false;
+    const words = (seg?.text ?? "").split(/\s+/).filter(Boolean);
+    if (!words.length) return false;
+    const stopwordHits = words.filter((w) => STOPWORDS.has(w.toLowerCase())).length;
+    const stopwordOnly = stopwordHits === words.length;
+    if (words.length < 3 && stopwordOnly) return false;
+    if (words.length < 4 && stopwordHits / words.length >= 0.75) return false;
+    return true;
+  });
+}
+
+function wordOverlapScore(a, b) {
+  const wordsA = new Set((a || "").split(/\s+/).filter(Boolean).map((w) => w.toLowerCase()));
+  const wordsB = new Set((b || "").split(/\s+/).filter(Boolean).map((w) => w.toLowerCase()));
+  if (!wordsA.size || !wordsB.size) return 0;
+  let overlap = 0;
+  for (const word of wordsA) {
+    if (wordsB.has(word)) overlap += 1;
+  }
+  return overlap / Math.min(wordsA.size, wordsB.size);
+}
+
+function normalizeSegments(inputSegments) {
+  const cleaned = (inputSegments ?? [])
+    .map((seg) => {
+      const start = Number(seg?.start ?? 0);
+      const duration = Math.max(0, Number(seg?.duration ?? 0));
+      const text = cleanCueText(seg?.text ?? "");
+      return { start, duration, text };
+    })
+    .filter((seg) => seg.text)
+    .sort((a, b) => a.start - b.start);
+
+  const filtered = filterNoiseSegments(cleaned);
+  const merged = [];
+
+  for (const seg of filtered) {
+    const prev = merged[merged.length - 1];
+    if (!prev) {
+      merged.push({ ...seg });
+      continue;
+    }
+
+    const gap = seg.start - (prev.start + prev.duration);
+    const closeEnough = gap <= OVERLAP_GAP_THRESHOLD;
+    const prevText = prev.text.toLowerCase();
+    const currText = seg.text.toLowerCase();
+    const containsPrev = currText.includes(prevText);
+    const containsCurr = prevText.includes(currText);
+    const overlap = wordOverlapScore(prevText, currText);
+
+    if (containsPrev && closeEnough) {
+      prev.text = seg.text;
+      prev.duration = Math.max(prev.duration, seg.start + seg.duration - prev.start);
+      continue;
+    }
+
+    if (containsCurr && closeEnough) {
+      prev.duration = Math.max(prev.duration, seg.start + seg.duration - prev.start);
+      continue;
+    }
+
+    if (overlap >= 0.8 && closeEnough) {
+      if (seg.text.length > prev.text.length) {
+        prev.text = seg.text;
+      }
+      prev.duration = Math.max(prev.duration, seg.start + seg.duration - prev.start);
+      continue;
+    }
+
+    merged.push({ ...seg });
+  }
+
+  return merged;
+}
+
+function segmentsToSrt(segments, { skipNormalize = false } = {}) {
+  const list = skipNormalize ? segments ?? [] : normalizeSegments(segments);
+  return list
     .map((seg, idx) => {
       const start = Number(seg.start ?? 0);
       const end = start + Number(seg.duration ?? 4);
@@ -59,11 +198,36 @@ function segmentsToSrt(segments) {
     .join("\n");
 }
 
-function segmentsToPlainText(segments) {
-  return segments
-    .map((seg) => seg.text?.trim() || "")
-    .filter(Boolean)
-    .join(" ");
+function mergeSegmentsForParagraphs(list) {
+  const merged = [];
+
+  for (const seg of list) {
+    const prev = merged[merged.length - 1];
+    if (!prev) {
+      merged.push({ ...seg });
+      continue;
+    }
+
+    const prevEnd = prev.start + prev.duration;
+    const gap = Math.max(0, seg.start - prevEnd);
+    const prevEndsSentence = /[.?!…:]$/.test(prev.text.trim());
+    const shouldMerge = gap <= MERGE_GAP_THRESHOLD && !prevEndsSentence;
+
+    if (shouldMerge) {
+      prev.text = `${prev.text} ${seg.text}`.replace(/\s+/g, " ").trim();
+      prev.duration = Math.max(prev.duration, seg.start + seg.duration - prev.start);
+    } else {
+      merged.push({ ...seg });
+    }
+  }
+
+  return merged.map((item) => item.text);
+}
+
+function segmentsToPlainText(segments, { skipNormalize = false } = {}) {
+  const list = skipNormalize ? segments ?? [] : normalizeSegments(segments);
+  const paragraphs = mergeSegmentsForParagraphs(list);
+  return paragraphs.join("\n\n");
 }
 
 function parseVttTimestamp(ts) {
@@ -95,7 +259,7 @@ function parseVtt(vtt) {
         textLines.push(lines[i].trim());
         i += 1;
       }
-      const text = textLines.join(" ").trim();
+      const text = cleanCueText(textLines.join(" "));
       if (text) {
         segments.push({ start, duration: Math.max(0, end - start), text });
       }
@@ -269,7 +433,7 @@ function buildSegmentsFromFullText(text, durationSeconds) {
 }
 
 function pickSubtitleTrack(info, langs, { sourcePreference = ["subtitles", "automatic_captions"] } = {}) {
-  const preferExt = ["vtt", "srt", "ttml", "srv3", "srv2", "srv1", "json3"];
+  const preferExt = ["vtt", "ttml", "srv3", "srv2", "srv1", "json3", "srt"];
   const uniqueLangs = [...new Set(langs)].filter(Boolean);
   const preferredSources =
     sourcePreference?.length > 0 ? sourcePreference : ["subtitles", "automatic_captions"];
@@ -322,12 +486,17 @@ export async function fetchYoutubeTranscript(videoId, { lang = "id" } = {}) {
           : "Subtitle/SRT tidak tersedia.";
     const text = `Transcript stub: ${message}. (Gunakan YTDLP_PATH/YOUTUBE_API_KEY dan pastikan subtitle tersedia untuk hasil asli.)`;
     const segments = [{ start: 0, duration: 5, text }];
+    const normalized = normalizeSegments(segments);
+    const paragraphs = mergeSegmentsForParagraphs(normalized);
+    const plainText = segmentsToPlainText(normalized, { skipNormalize: true }) || text;
     return {
       videoId,
       lang: "id",
-      segments,
-      text,
-      srt: segmentsToSrt(segments),
+      segments: normalized,
+      text: plainText,
+      paragraphs,
+      srt: segmentsToSrt(normalized, { skipNormalize: true }),
+      vtt: null,
     };
   };
 
@@ -399,8 +568,11 @@ export async function fetchYoutubeTranscript(videoId, { lang = "id" } = {}) {
 
       const body = await res.text();
       const segments = parseSubtitleBody(subtitle, body);
+      const normalizedSegments = normalizeSegments(segments);
+      const paragraphs = mergeSegmentsForParagraphs(normalizedSegments);
+      const plainText = segmentsToPlainText(normalizedSegments, { skipNormalize: true });
 
-      if (!segments || !segments.length) {
+      if (!normalizedSegments || !normalizedSegments.length) {
         lastError = new Error(
           `${attempt.label} kosong atau gagal diparse untuk bahasa ${subtitle.lang || "unknown"} (ext ${
             subtitle.ext || "unknown"
@@ -412,9 +584,11 @@ export async function fetchYoutubeTranscript(videoId, { lang = "id" } = {}) {
       return {
         videoId,
         lang: subtitle.lang,
-        segments,
-        text: segmentsToPlainText(segments),
-        srt: segmentsToSrt(segments),
+        segments: normalizedSegments,
+        text: plainText,
+        paragraphs,
+        srt: segmentsToSrt(normalizedSegments, { skipNormalize: true }),
+        vtt: subtitle.ext === "vtt" ? body : null,
       };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
@@ -442,12 +616,17 @@ export async function fetchYoutubeTranscript(videoId, { lang = "id" } = {}) {
       const text = transcription?.text?.trim() ?? "";
       if (text) {
         const segments = buildSegmentsFromFullText(text, durationSeconds);
+        const normalized = normalizeSegments(segments);
+        const paragraphs = mergeSegmentsForParagraphs(normalized);
+        const plainText = segmentsToPlainText(normalized, { skipNormalize: true }) || text;
         return {
           videoId,
           lang: preferredLang,
-          segments,
-          text,
-          srt: segmentsToSrt(segments),
+          segments: normalized,
+          text: plainText,
+          paragraphs,
+          srt: segmentsToSrt(normalized, { skipNormalize: true }),
+          vtt: null,
         };
       }
 
