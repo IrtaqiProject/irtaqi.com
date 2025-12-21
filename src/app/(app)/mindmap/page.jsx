@@ -22,6 +22,7 @@ import { streamFeature } from "@/lib/feature-stream-client";
 import { useFeatureProgress } from "@/lib/use-progress";
 import { cn } from "@/lib/utils";
 import { buildMindmapChart } from "@/lib/mindmap";
+import { accountAtom } from "@/state/account-atoms";
 import {
   mindmapChartAtom,
   mindmapErrorAtom,
@@ -49,6 +50,7 @@ export default function MindmapPage() {
     mindmapProgressAtom
   );
   const [streamingText, setStreamingText] = useAtom(mindmapStreamingAtom);
+  const [, setAccount] = useAtom(accountAtom);
   const mindmapProgressCtrl = useFeatureProgress(setMindmapProgress);
 
   useEffect(() => {
