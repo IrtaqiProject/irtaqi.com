@@ -12,12 +12,17 @@ import {
   transcribeAudioStub,
   transcribeAudioWithWhisper,
 } from "@/lib/openai";
+<<<<<<< HEAD
 import {
   downloadYoutubeAudio,
   extractVideoId,
   fetchYoutubeTranscript,
 } from "@/lib/youtube";
+=======
+import { downloadYoutubeAudio, extractVideoId } from "@/lib/youtube";
+>>>>>>> main
 import { authOptions } from "@/lib/auth";
+import { consumeUserTokens, getUserAccount } from "@/lib/user-store";
 
 const processSchema = z.object({
   youtubeUrl: z.string().url(),
@@ -28,7 +33,14 @@ function estimateDurationSeconds(segments) {
   const seconds = segments.reduce((max, seg) => {
     const start = Number(seg?.start ?? 0);
     const duration = Number(seg?.duration ?? 0);
+<<<<<<< HEAD
     const end = Number.isFinite(duration) && duration > 0 ? start + duration : Number(seg?.end ?? start);
+=======
+    const end =
+      Number.isFinite(duration) && duration > 0
+        ? start + duration
+        : Number(seg?.end ?? start);
+>>>>>>> main
     return Math.max(max, end);
   }, 0);
   const rounded = Math.round(seconds);
@@ -68,12 +80,21 @@ export async function processYoutubeTranscriptionAction(input) {
     throw new Error("Harus login untuk memproses transcript.");
   }
 
+  const preAccount = getUserAccount(session.user.id, {
+    email: session.user.email,
+    name: session.user.name,
+  });
+  if (!preAccount.isSubscribed && (preAccount.tokens ?? 0) <= 0) {
+    throw new Error("Token habis. Langganan Plus, Pro, atau Ultra untuk lanjut.");
+  }
+
   const videoId = extractVideoId(parsed.data.youtubeUrl);
   if (!videoId) {
     throw new Error("URL YouTube tidak valid");
   }
 
   let transcription = null;
+<<<<<<< HEAD
   let lastError = null;
 
   try {
@@ -99,12 +120,36 @@ export async function processYoutubeTranscriptionAction(input) {
         err instanceof Error ? err.message : lastError?.message || "Proses transcribe gagal.";
       throw new Error(`Gagal memproses audio YouTube: ${message}`);
     }
+=======
+  try {
+    transcription = await transcribeYoutubeAudio(videoId);
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Proses transcribe gagal.";
+    throw new Error(`Gagal memproses audio YouTube: ${message}`);
+  }
+
+  if (!transcription?.text) {
+    throw new Error("Hasil transcribe kosong. Coba ulangi.");
+>>>>>>> main
   }
 
   const durationSeconds =
     transcription?.durationSeconds ??
     estimateDurationSeconds(transcription?.segments ?? []) ??
     null;
+<<<<<<< HEAD
+=======
+
+  consumeUserTokens(session.user.id, 1, {
+    email: session.user.email,
+    name: session.user.name,
+  });
+  const account = getUserAccount(session.user.id, {
+    email: session.user.email,
+    name: session.user.name,
+  });
+>>>>>>> main
 
   const saved = await saveTranscriptResult({
     videoId,
@@ -127,6 +172,7 @@ export async function processYoutubeTranscriptionAction(input) {
     createdAt: saved?.created_at ?? null,
     lang: transcription?.lang ?? transcription?.language ?? null,
     durationSeconds,
+    account,
   };
 }
 

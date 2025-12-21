@@ -11,6 +11,7 @@ import {
   BookOpen,
   CheckCircle2,
   Clock,
+  Download,
   FileText,
   Loader2,
   PlayCircle,
@@ -316,9 +317,12 @@ export default function TranscriptDetailPage() {
   const transcriptId = params?.id;
   const { status } = useSession();
   const router = useRouter();
-  const [data, setData] = useAtom(transcriptDetailAtom);
-  const [loading, setLoading] = useAtom(transcriptDetailLoadingAtom);
-  const [error, setError] = useAtom(transcriptDetailErrorAtom);
+
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [downloadError, setDownloadError] = useState("");
+  const [downloadLoading, setDownloadLoading] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -361,7 +365,52 @@ export default function TranscriptDetailPage() {
     return () => {
       active = false;
     };
-  }, [setData, setError, setLoading, status, transcriptId]);
+  }, [status, transcriptId]);
+
+  const handleDownload = async (format) => {
+    if (!transcriptId) return;
+    if (!data?.transcript) {
+      setDownloadError("Transcript belum siap diunduh.");
+      return;
+    }
+    setDownloadError("");
+    setDownloadLoading(format);
+    try {
+      const res = await fetch(
+        `/api/transcripts/${transcriptId}/download?format=${format}`,
+      );
+      if (!res.ok) {
+        let message = `Gagal mengunduh (${res.status}).`;
+        try {
+          const json = await res.json();
+          if (json?.error) message = json.error;
+        } catch {
+          // swallow parsing error
+        }
+        throw new Error(message);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const ext = format === "pdf" ? "pdf" : "doc";
+      const filename = data?.videoId
+        ? `transcript-${data.videoId}.${ext}`
+        : `transcript-${transcriptId}.${ext}`;
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadError(
+        err instanceof Error ? err.message : "Gagal mengunduh transcript.",
+      );
+    } finally {
+      setDownloadLoading("");
+    }
+  };
 
   const urlLabel = data?.youtubeUrl
     ? data.youtubeUrl.replace(/^https?:\/\//, "")
@@ -516,6 +565,30 @@ export default function TranscriptDetailPage() {
                   <p className="text-xs uppercase tracking-[0.2em] text-white/60">
                     Aksi cepat
                   </p>
+                  <Button
+                    className="w-full bg-white text-black hover:bg-white/90"
+                    onClick={() => handleDownload("word")}
+                    disabled={downloadLoading === "word"}
+                  >
+                    {downloadLoading === "word" ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="mr-2 h-4 w-4" />
+                    )}
+                    Download Word
+                  </Button>
+                  <Button
+                    className="w-full bg-emerald-500 text-white hover:bg-emerald-600"
+                    onClick={() => handleDownload("pdf")}
+                    disabled={downloadLoading === "pdf"}
+                  >
+                    {downloadLoading === "pdf" ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileText className="mr-2 h-4 w-4" />
+                    )}
+                    Download PDF
+                  </Button>
                   <Button asChild className="w-full shadow-brand">
                     <Link href="/transcribe">
                       Buka transcribe
@@ -542,6 +615,9 @@ export default function TranscriptDetailPage() {
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
+                  {downloadError ? (
+                    <p className="text-xs text-amber-200">{downloadError}</p>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>

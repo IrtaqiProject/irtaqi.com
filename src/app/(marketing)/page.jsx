@@ -136,7 +136,7 @@ export default function Home() {
         <div className="flex-1 space-y-6">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-emerald-200 backdrop-blur">
             <span className="h-2 w-2 rounded-full bg-emerald-300" />
-            Irtaqi.com — Deep & Fun Islamic Learning
+            RingkasKajianAi.com — Deep & Fun Islamic Learning
           </div>
           <h1 className="text-balance text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
             Transformasi kajian jadi{" "}

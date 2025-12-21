@@ -31,7 +31,11 @@ import {
   mindmapResultAtom,
   transcriptResultAtom,
 } from "@/state/transcribe-atoms";
+<<<<<<< HEAD
 import { mindmapStreamingAtom } from "@/state/ui-atoms";
+=======
+import { accountAtom } from "@/state/account-atoms";
+>>>>>>> main
 
 export default function MindmapPage() {
   const { status } = useSession();
@@ -48,7 +52,12 @@ export default function MindmapPage() {
   const [mindmapProgress, setMindmapProgress] = useAtom(
     mindmapProgressAtom
   );
+<<<<<<< HEAD
   const [streamingText, setStreamingText] = useAtom(mindmapStreamingAtom);
+=======
+  const [, setAccount] = useAtom(accountAtom);
+  const [streamingText, setStreamingText] = useState("");
+>>>>>>> main
   const mindmapProgressCtrl = useFeatureProgress(setMindmapProgress);
 
   useEffect(() => {
@@ -131,6 +140,7 @@ export default function MindmapPage() {
           prev ? { ...prev, id: data.transcriptId } : prev
         );
       }
+      if (data?.account) setAccount(data.account);
       setMindmapResult({ ...data.mindmap, model: data.model });
       renderChart(data.mindmap?.nodes ?? [], data.mindmap?.title);
       mindmapProgressCtrl.complete();

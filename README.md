@@ -59,13 +59,14 @@ bun run migrate
 
 ## Deployment (IDcloudhost + Cloudflare)
 
-- **Backend (VPS on IDcloudhost)**  
-  - Build: `bun install && bun run build`  
-  - Start: `bun run start` (or `pm2 start bun -- run start`)  
+- **Backend (VPS on IDcloudhost)**
+
+  - Build: `bun install && bun run build`
+  - Start: `bun run start` (or `pm2 start bun -- run start`)
   - Expose `PORT` (default 3000) and set `.env` values termasuk `POSTGRES_URL`.
 
-- **Frontend (Cloudflare Pages)**  
-  - Framework preset: Next.js.  
-  - Build command: `bun install && bun run build`  
-  - Output directory: `.next` (Cloudflare handles).  
+- **Frontend (Cloudflare Pages)**
+  - Framework preset: Next.js.
+  - Build command: `bun install && bun run build`
+  - Output directory: `.next` (Cloudflare handles).
   - Set `NEXT_PUBLIC_APP_URL` to your Pages domain and point `NEXTAUTH_URL` to the backend URL on the VPS.

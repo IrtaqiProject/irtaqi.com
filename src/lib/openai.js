@@ -36,9 +36,13 @@ function segmentsToSrt(segments) {
     .map((seg, idx) => {
       const start = Number(seg?.start ?? 0);
       const end =
-        seg?.end !== undefined ? Number(seg.end) : start + Number(seg?.duration ?? 0);
+        seg?.end !== undefined
+          ? Number(seg.end)
+          : start + Number(seg?.duration ?? 0);
       const text = seg?.text?.trim() || "";
-      if (!Number.isFinite(start) || !Number.isFinite(end) || !text) return null;
+      if (!Number.isFinite(start) || !Number.isFinite(end) || !text) {
+        return null;
+      }
       return `${idx + 1}\n${toSrtTimestamp(start)} --> ${toSrtTimestamp(end)}\n${text}\n`;
     })
     .filter(Boolean)
@@ -56,7 +60,6 @@ export async function transcribeAudioStub(source, prompt) {
     prompt ? ` with prompt "${prompt}"` : ""
   }.`;
   const segments = [{ start: 0, end: 5, duration: 5, text: placeholder }];
-
   return {
     text: placeholder,
     srt: segmentsToSrt(segments),
@@ -76,11 +79,6 @@ export async function transcribeAudioWithWhisper(
     throw new Error("Path audio tidak ditemukan untuk transkripsi.");
   }
 
-  const stats = await fs.promises.stat(filePath).catch(() => null);
-  if (!stats || !stats.isFile() || stats.size === 0) {
-    throw new Error("File audio kosong atau gagal diunduh.");
-  }
-
   if (!process.env.OPENAI_API_KEY) {
     return transcribeAudioStub(filePath, prompt);
   }
@@ -96,9 +94,10 @@ export async function transcribeAudioWithWhisper(
       temperature: 0,
     });
 
-    const rawSegments = Array.isArray(transcription?.segments)
+    const rawSegments = Array.isArray(transcription.segments)
       ? transcription.segments
       : [];
+
     const segments = rawSegments.map((seg) => {
       const start = Number(seg?.start ?? 0);
       const end = Number(seg?.end ?? start);

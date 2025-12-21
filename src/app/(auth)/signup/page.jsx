@@ -4,12 +4,25 @@ import { Suspense } from "react";
 import { useAtom } from "jotai";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { UserPlus, Mail, Lock, Loader2, ArrowLeft, CheckCircle } from "lucide-react";
+import {
+  UserPlus,
+  Mail,
+  Lock,
+  Loader2,
+  ArrowLeft,
+  CheckCircle,
+} from "lucide-react";
 import Link from "next/link";
 
 import { signupAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
   signupErrorAtom,
@@ -21,7 +34,8 @@ import {
 function SignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/transcribe";
+  const callbackUrl =
+    searchParams.get("callbackUrl") || "/transcribe";
   const [form, setForm] = useAtom(signupFormAtom);
   const [loading, setLoading] = useAtom(signupLoadingAtom);
   const [error, setError] = useAtom(signupErrorAtom);
@@ -35,7 +49,9 @@ function SignupContent() {
     try {
       await signupAction(form);
       setSuccess(true);
-      router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+      router.push(
+        `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal daftar");
     } finally {
@@ -47,9 +63,12 @@ function SignupContent() {
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#1b1145] via-[#130d32] to-[#0b0820] px-4 text-white">
       <Card className="w-full max-w-md border-white/10 bg-white/5 text-white backdrop-blur">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl font-bold">Buat akun Irtaqi</CardTitle>
+          <CardTitle className="text-2xl font-bold">
+            Buat akun di RingkasKajianAi.com
+          </CardTitle>
           <CardDescription className="text-white/70">
-            Daftar dengan email atau langsung masuk lewat Google, lalu mulai transcribe & buat quiz dari kajian.
+            Daftar dengan email atau langsung masuk lewat Google, lalu
+            mulai transcribe & buat quiz dari kajian.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -61,7 +80,9 @@ function SignupContent() {
                 <input
                   required
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, name: e.target.value })
+                  }
                   className="w-full bg-transparent text-sm text-white placeholder:text-white/50 focus:outline-none"
                   placeholder="Nama lengkap"
                 />
@@ -75,7 +96,9 @@ function SignupContent() {
                   type="email"
                   required
                   value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, email: e.target.value })
+                  }
                   className="w-full bg-transparent text-sm text-white placeholder:text-white/50 focus:outline-none"
                   placeholder="you@email.com"
                 />
@@ -89,30 +112,43 @@ function SignupContent() {
                   type="password"
                   required
                   value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
                   className="w-full bg-transparent text-sm text-white placeholder:text-white/50 focus:outline-none"
                   placeholder="Minimal 6 karakter"
                 />
               </div>
             </label>
-            {error ? <p className="text-sm text-amber-300">{error}</p> : null}
+            {error ? (
+              <p className="text-sm text-amber-300">{error}</p>
+            ) : null}
             {success ? (
               <p className="flex items-center gap-2 text-sm text-emerald-200">
-                <CheckCircle className="h-4 w-4" /> Akun dibuat! Anda akan diarahkan...
+                <CheckCircle className="h-4 w-4" /> Akun dibuat! Anda
+                akan diarahkan...
               </p>
             ) : null}
             <Button
               type="submit"
-              className={cn("w-full bg-gradient-to-r from-[#ff7ce5] via-[#9b5cff] to-[#4f46e5] text-white")}
+              className={cn(
+                "w-full bg-gradient-to-r from-[#ff7ce5] via-[#9b5cff] to-[#4f46e5] text-white"
+              )}
               disabled={loading}
             >
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+              {loading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <UserPlus className="mr-2 h-4 w-4" />
+              )}
               Daftar & Masuk
             </Button>
           </form>
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-white/10" />
-            <span className="text-xs uppercase tracking-[0.2em] text-white/50">atau</span>
+            <span className="text-xs uppercase tracking-[0.2em] text-white/50">
+              atau
+            </span>
             <div className="h-px flex-1 bg-white/10" />
           </div>
           <Button
@@ -124,14 +160,23 @@ function SignupContent() {
             Daftar / Masuk dengan Google
           </Button>
           <div className="flex items-center justify-between text-sm text-white/70">
-            <Link href="/login" className="inline-flex items-center gap-1 font-semibold text-emerald-200">
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1 font-semibold text-emerald-200"
+            >
               <ArrowLeft className="h-4 w-4" /> Kembali ke login
             </Link>
             <Button
               size="sm"
               variant="secondary"
               className="bg-white text-[#1b1145] hover:bg-white/90"
-              onClick={() => router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`)}
+              onClick={() =>
+                router.push(
+                  `/login?callbackUrl=${encodeURIComponent(
+                    callbackUrl
+                  )}`
+                )
+              }
             >
               Login
             </Button>

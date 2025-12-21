@@ -1,9 +1,15 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useAtom } from "jotai";
 import Link from "next/link";
-import { FileText, Loader2, PlayCircle, Rocket } from "lucide-react";
+import {
+  Download,
+  FileText,
+  Loader2,
+  PlayCircle,
+  Rocket,
+} from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -20,6 +26,7 @@ import {
 import { StepLayout } from "@/components/step-layout";
 import { useFeatureProgress } from "@/lib/use-progress";
 import { cn } from "@/lib/utils";
+import { accountAtom } from "@/state/account-atoms";
 import {
   errorAtom,
   loadingAtom,
@@ -70,6 +77,9 @@ function TranscribePageContent() {
   const [transcribeProgress, setTranscribeProgress] = useAtom(
     transcribeProgressAtom
   );
+  const [downloadLoading, setDownloadLoading] = useState("");
+  const [downloadError, setDownloadError] = useState("");
+  const [, setAccount] = useAtom(accountAtom);
   const [, setSummaryResult] = useAtom(summaryResultAtom);
   const [, setQaResult] = useAtom(qaResultAtom);
   const [, setMindmapResult] = useAtom(mindmapResultAtom);
@@ -142,6 +152,8 @@ function TranscribePageContent() {
     setLoading(true);
     setError("");
     setResult(null);
+    setDownloadError("");
+    setDownloadLoading("");
     resetFeatureStates();
     transcribeProgressCtrl.start();
     try {
@@ -149,6 +161,7 @@ function TranscribePageContent() {
         youtubeUrl,
       });
       setResult(data);
+      if (data?.account) setAccount(data.account);
       transcribeProgressCtrl.complete();
     } catch (err) {
       setError(
@@ -159,6 +172,58 @@ function TranscribePageContent() {
       transcribeProgressCtrl.fail();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownload = async (format) => {
+    if (!result?.id) {
+      setDownloadError("Transcript belum tersimpan. Coba ulangi transcribe.");
+      return;
+    }
+    if (!result?.transcript) {
+      setDownloadError("Transcript belum siap diunduh.");
+      return;
+    }
+
+    setDownloadError("");
+    setDownloadLoading(format);
+
+    try {
+      const res = await fetch(
+        `/api/transcripts/${result.id}/download?format=${format}`
+      );
+      if (!res.ok) {
+        let message = `Gagal mengunduh (${res.status}).`;
+        try {
+          const json = await res.json();
+          if (json?.error) message = json.error;
+        } catch {
+          // abaikan parse error
+        }
+        throw new Error(message);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const ext = format === "pdf" ? "pdf" : "doc";
+      const filename = result.videoId
+        ? `transcript-${result.videoId}.${ext}`
+        : `transcript-${result.id}.${ext}`;
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadError(
+        err instanceof Error
+          ? err.message
+          : "Gagal mengunduh transcript."
+      );
+    } finally {
+      setDownloadLoading("");
     }
   };
 
@@ -297,6 +362,53 @@ function TranscribePageContent() {
                     <Link href="/quiz">Langkah Quiz</Link>
                   </Button>
                 </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-4 shadow-inner">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      Download Transcribe
+                    </p>
+                    <p className="text-xs text-white/60">
+                      Teks sudah dibersihkan dari timestamp &amp; disusun jadi paragraf.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      className="bg-white text-[#120b34]"
+                      onClick={() => handleDownload("word")}
+                      disabled={downloadLoading === "word"}
+                    >
+                      {downloadLoading === "word" ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="mr-2 h-4 w-4" />
+                      )}
+                      Download Word
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="bg-emerald-500 text-white hover:bg-emerald-600"
+                      onClick={() => handleDownload("pdf")}
+                      disabled={downloadLoading === "pdf"}
+                    >
+                      {downloadLoading === "pdf" ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileText className="mr-2 h-4 w-4" />
+                      )}
+                      Download PDF
+                    </Button>
+                  </div>
+                </div>
+                {downloadError ? (
+                  <p className="mt-2 text-xs text-amber-200">
+                    {downloadError}
+                  </p>
+                ) : null}
               </div>
 
               <Card className="border-white/10 bg-[#12122f]/70 text-white">

@@ -4,7 +4,7 @@ import { Providers } from "@/components/providers";
 import { UserBadgeFloating } from "@/components/user-badge";
 
 export const metadata = {
-  title: "Irtaqi AI Boilerplate",
+  title: "RingkaskajianAi.com",
   description:
     "Next.js + Tailwind + NextAuth starter untuk YouTube transcript, LLM ringkasan/Q&A/mindmap, dan Postgres.",
 };
