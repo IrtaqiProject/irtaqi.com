@@ -20,6 +20,7 @@ import { StepLayout } from "@/components/step-layout";
 import { streamFeature } from "@/lib/feature-stream-client";
 import { useFeatureProgress } from "@/lib/use-progress";
 import { cn } from "@/lib/utils";
+import { accountAtom } from "@/state/account-atoms";
 import {
   qaErrorAtom,
   qaLoadingAtom,
