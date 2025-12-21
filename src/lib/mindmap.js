@@ -47,6 +47,7 @@ export function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
   const referenced = new Set();
   map.forEach((node) => node.children.forEach((child) => referenced.add(child)));
 
+  // Pilih akar yang konsisten (n1/root atau node yang tidak pernah direferensikan) supaya struktur tetap utuh walau data kurang rapi.
   let rootKey = null;
   if (map.has("n1")) {
     rootKey = "n1";
@@ -66,6 +67,7 @@ export function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
   const lines = ["mindmap"];
   const visited = new Set();
 
+  // DFS ringan untuk merangkai node tanpa menimbulkan siklus bila input berantakan.
   const walk = (key, depth) => {
     if (visited.has(key)) return;
     visited.add(key);

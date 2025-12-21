@@ -4,7 +4,7 @@ import { useAtom } from "jotai";
 import Link from "next/link";
 import { Loader2, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 
 import { ProgressBar } from "@/components/progress-bar";
@@ -28,6 +28,7 @@ import {
   qaResultAtom,
   transcriptResultAtom,
 } from "@/state/transcribe-atoms";
+import { qaStreamingAtom } from "@/state/ui-atoms";
 
 export default function QaPage() {
   const { status } = useSession();
@@ -40,7 +41,7 @@ export default function QaPage() {
   const [loading, setLoading] = useAtom(qaLoadingAtom);
   const [error, setError] = useAtom(qaErrorAtom);
   const [qaProgress, setQaProgress] = useAtom(qaProgressAtom);
-  const [streamingText, setStreamingText] = useState("");
+  const [streamingText, setStreamingText] = useAtom(qaStreamingAtom);
   const qaProgressCtrl = useFeatureProgress(setQaProgress);
 
   useEffect(() => {

@@ -262,17 +262,6 @@ function TranscribePageContent() {
                 <p className="font-semibold text-emerald-200">
                   Transcript siap dipakai
                 </p>
-                {/* <p className="text-white/80">
-                  Disimpan dengan ID{" "}
-                  <span className="font-mono">
-                    {result.id ?? "–"}
-                  </span>
-                  . Video {result.videoId}
-                  {result.lang
-                    ? ` (${result.lang.toUpperCase()})`
-                    : ""}
-                  .
-                </p> */}
                 <p className="mt-2 text-xs text-white/60">
                   {result.youtubeUrl}
                 </p>
@@ -313,10 +302,6 @@ function TranscribePageContent() {
               <Card className="border-white/10 bg-[#12122f]/70 text-white">
                 <CardHeader>
                   <CardTitle>Transcript &amp; SRT penuh</CardTitle>
-                  {/* <CardDescription className="text-white/75">
-                    Konten lengkap ditampilkan tanpa pemotongan agar
-                    mudah dicek dan disalin.
-                  </CardDescription> */}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>

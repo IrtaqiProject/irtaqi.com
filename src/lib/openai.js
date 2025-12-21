@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import OpenAI from "openai";
 
 import { getCachedCompletion, setCachedCompletion } from "./llm-cache";
@@ -19,13 +20,127 @@ function resolveModel() {
   return process.env.OPENAI_MODEL ?? "gpt-5-mini";
 }
 
+function toSrtTimestamp(seconds) {
+  const safeSeconds = Math.max(0, Number(seconds) || 0);
+  const date = new Date(safeSeconds * 1000);
+  const hh = String(date.getUTCHours()).padStart(2, "0");
+  const mm = String(date.getUTCMinutes()).padStart(2, "0");
+  const ss = String(date.getUTCSeconds()).padStart(2, "0");
+  const ms = String(date.getUTCMilliseconds()).padStart(3, "0");
+  return `${hh}:${mm}:${ss},${ms}`;
+}
+
+function segmentsToSrt(segments) {
+  if (!Array.isArray(segments) || !segments.length) return "";
+  return segments
+    .map((seg, idx) => {
+      const start = Number(seg?.start ?? 0);
+      const end =
+        seg?.end !== undefined ? Number(seg.end) : start + Number(seg?.duration ?? 0);
+      const text = seg?.text?.trim() || "";
+      if (!Number.isFinite(start) || !Number.isFinite(end) || !text) return null;
+      return `${idx + 1}\n${toSrtTimestamp(start)} --> ${toSrtTimestamp(end)}\n${text}\n`;
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function normalizeTranscriptText(text) {
+  if (!text) return "";
+  return text.replace(/\s+/g, " ").trim();
+}
+
 export async function transcribeAudioStub(source, prompt) {
   // Placeholder to avoid network calls during development.
+  const placeholder = `Transcription placeholder for "${source}"${
+    prompt ? ` with prompt "${prompt}"` : ""
+  }.`;
+  const segments = [{ start: 0, end: 5, duration: 5, text: placeholder }];
+
   return {
-    text: `Transcription placeholder for "${source}"${
-      prompt ? ` with prompt "${prompt}"` : ""
-    }.`,
+    text: placeholder,
+    srt: segmentsToSrt(segments),
+    segments,
+    durationSeconds: 5,
+    model: "stub-no-openai-key",
+    lang: "id",
+    language: "id",
   };
+}
+
+export async function transcribeAudioWithWhisper(
+  filePath,
+  { prompt, language = "id" } = {},
+) {
+  if (!filePath) {
+    throw new Error("Path audio tidak ditemukan untuk transkripsi.");
+  }
+
+  const stats = await fs.promises.stat(filePath).catch(() => null);
+  if (!stats || !stats.isFile() || stats.size === 0) {
+    throw new Error("File audio kosong atau gagal diunduh.");
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    return transcribeAudioStub(filePath, prompt);
+  }
+
+  try {
+    const client = getOpenAIClient();
+    const transcription = await client.audio.transcriptions.create({
+      file: fs.createReadStream(filePath),
+      model: "whisper-1",
+      prompt: prompt || undefined,
+      language,
+      response_format: "verbose_json",
+      temperature: 0,
+    });
+
+    const rawSegments = Array.isArray(transcription?.segments)
+      ? transcription.segments
+      : [];
+    const segments = rawSegments.map((seg) => {
+      const start = Number(seg?.start ?? 0);
+      const end = Number(seg?.end ?? start);
+      return {
+        id: seg?.id,
+        start,
+        end,
+        duration: Math.max(0, end - start),
+        text: seg?.text?.trim() ?? "",
+      };
+    });
+
+    const text =
+      normalizeTranscriptText(
+        transcription.text ?? segments.map((s) => s.text).join(" "),
+      ) || "";
+    const srt = segmentsToSrt(segments);
+    const fallbackDuration = segments.reduce(
+      (max, seg) => Math.max(max, Number(seg?.end ?? 0)),
+      0,
+    );
+    const durationSeconds =
+      typeof transcription.duration === "number" && transcription.duration > 0
+        ? Math.round(transcription.duration)
+        : fallbackDuration > 0
+          ? Math.round(fallbackDuration)
+          : null;
+
+    return {
+      text,
+      srt,
+      segments,
+      durationSeconds,
+      model: transcription.model ?? "whisper-1",
+      lang: transcription.language ?? null,
+      language: transcription.language ?? null,
+    };
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Transkripsi Whisper gagal.";
+    throw new Error(`Gagal mentranskripsi audio: ${message}`);
+  }
 }
 
 export function buildStubInsights(

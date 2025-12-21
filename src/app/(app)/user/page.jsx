@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useAtom } from "jotai";
 import {
   ArrowRight,
   BarChart3,
@@ -24,6 +25,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  userDataErrorAtom,
+  userDataLoadingAtom,
+  userTranscriptsAtom,
+} from "@/state/ui-atoms";
 
 const DEFAULT_AVATAR = "/avatar-default.svg";
 
@@ -38,17 +44,16 @@ const stageClasses = {
 };
 
 function StageBadge({ label, state = "pending" }) {
-  const normalizedState =
-    state === "done" ? "completed" : state === "todo" ? "pending" : state;
+  let normalizedState = state;
+  if (state === "done") normalizedState = "completed";
+  else if (state === "todo") normalizedState = "pending";
 
-  const icon =
-    normalizedState === "completed" ? (
-      <CheckCircle2 className="h-4 w-4" />
-    ) : normalizedState === "in-progress" ? (
-      <Loader2 className="h-4 w-4 animate-spin" />
-    ) : (
-      <Clock className="h-4 w-4" />
-    );
+  let icon = <Clock className="h-4 w-4" />;
+  if (normalizedState === "completed") {
+    icon = <CheckCircle2 className="h-4 w-4" />;
+  } else if (normalizedState === "in-progress") {
+    icon = <Loader2 className="h-4 w-4 animate-spin" />;
+  }
 
   return (
     <span
@@ -356,9 +361,15 @@ function buildTimelineEntries(items) {
 export default function UserPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [transcripts, setTranscripts] = useState([]);
-  const [dataLoading, setDataLoading] = useState(true);
-  const [dataError, setDataError] = useState("");
+  const [transcripts, setTranscripts] = useAtom(userTranscriptsAtom);
+  const [dataLoading, setDataLoading] = useAtom(userDataLoadingAtom);
+  const [dataError, setDataError] = useAtom(userDataErrorAtom);
+
+  useEffect(() => {
+    setTranscripts([]);
+    setDataError("");
+    setDataLoading(true);
+  }, [setDataError, setDataLoading, setTranscripts]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -691,19 +702,16 @@ export default function UserPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3">
-          <Card className="border-white/10 bg-white/5 text-white shadow-xl lg:col-span-2">
-            <CardHeader>
-              <CardTitle>
-                Video yang sudah ditranscribe & diproses
-              </CardTitle>
-              {/* <CardDescription className="text-white/70">
-                Data diambil dari DB/API, bukan placeholder lagi.
-              </CardDescription> */}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {dataLoading ? (
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70">
-                  Memuat data proses video...
+              <Card className="border-white/10 bg-white/5 text-white shadow-xl lg:col-span-2">
+                <CardHeader>
+                  <CardTitle>
+                    Video yang sudah ditranscribe & diproses
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {dataLoading ? (
+                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70">
+                      Memuat data proses video...
                 </div>
               ) : null}
 

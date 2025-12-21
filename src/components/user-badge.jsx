@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { signOut, useSession } from "next-auth/react";
+import { useAtom } from "jotai";
 import { ChevronDown, LogOut, UserRound } from "lucide-react";
+
+import { userBadgeOpenAtom } from "@/state/ui-atoms";
 
 const DEFAULT_AVATAR = "/avatar-default.svg";
 
@@ -35,7 +38,7 @@ function resolveAvatarUrl(image, email) {
 
 export function UserBadgeFloating() {
   const { data: session, status } = useSession();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useAtom(userBadgeOpenAtom);
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -104,7 +107,6 @@ export function UserBadgeFloating() {
             {badgeInitials}
           </span>
         )}
-        {/* <UserRound className="hidden h-4 w-4 text-emerald-200 sm:inline" /> */}
         <span className="hidden sm:inline">{name}</span>
         <span className="inline sm:hidden">Profil</span>
         <ChevronDown
