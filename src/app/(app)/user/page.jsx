@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useAtom } from "jotai";
@@ -25,6 +25,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  accountAtom,
+  accountErrorAtom,
+  accountLoadingAtom,
+} from "@/state/account-atoms";
 import {
   userDataErrorAtom,
   userDataLoadingAtom,
@@ -385,6 +390,12 @@ export default function UserPage() {
   const [transcripts, setTranscripts] = useAtom(userTranscriptsAtom);
   const [dataLoading, setDataLoading] = useAtom(userDataLoadingAtom);
   const [dataError, setDataError] = useAtom(userDataErrorAtom);
+  const [account, setAccount] = useAtom(accountAtom);
+  const [accountLoading, setAccountLoading] = useAtom(accountLoadingAtom);
+  const [accountError, setAccountError] = useAtom(accountErrorAtom);
+  const [plans, setPlans] = useState([]);
+  const [subscribeLoading, setSubscribeLoading] = useState("");
+  const [subscribeMessage, setSubscribeMessage] = useState("");
 
   useEffect(() => {
     setTranscripts([]);
