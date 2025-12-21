@@ -48,6 +48,9 @@ function decideQuizCount(durationSeconds) {
 
 function buildTranscriptionFromSubtitle(result, { model = null } = {}) {
   const segments = result?.segments ?? [];
+  const videoDurationSeconds = Number.isFinite(result?.videoDurationSeconds ?? null)
+    ? Math.round(result.videoDurationSeconds)
+    : null;
   return {
     text: result?.text ?? "",
     srt: result?.srt ?? "",
@@ -55,6 +58,7 @@ function buildTranscriptionFromSubtitle(result, { model = null } = {}) {
     lang: result?.lang ?? null,
     language: result?.lang ?? null,
     durationSeconds: estimateDurationSeconds(segments),
+    videoDurationSeconds,
     model,
   };
 }
@@ -71,15 +75,30 @@ async function transcribeYoutubeAudio(videoId, { prompt } = {}) {
   }
 }
 
+function isTranscriptTooShort({ durationSeconds, videoDurationSeconds }) {
+  if (!Number.isFinite(durationSeconds) || !Number.isFinite(videoDurationSeconds)) {
+    return false;
+  }
+  const gap = videoDurationSeconds - durationSeconds;
+  const allowedGap = Math.max(30, Math.round(videoDurationSeconds * 0.2));
+  return gap > allowedGap;
+}
+
 async function transcribeYoutubeWithPriority(videoId, { prompt } = {}) {
+  let whisperResult = null;
   const errors = [];
   const normalizeErr = (err) =>
     err instanceof Error ? err : new Error(String(err));
 
   try {
-    const whisperResult = await transcribeYoutubeAudio(videoId, { prompt });
-    if (whisperResult?.text) return whisperResult;
-    errors.push(new Error("Transkripsi Whisper kosong."));
+    whisperResult = await transcribeYoutubeAudio(videoId, { prompt });
+    const hasText = Boolean(whisperResult?.text?.trim());
+    const isStub = whisperResult?.model === "stub-no-openai-key";
+    if (hasText && !isStub) return whisperResult;
+    const reason = isStub
+      ? "Whisper tidak aktif (OPENAI_API_KEY kosong)."
+      : "Transkripsi Whisper kosong.";
+    errors.push(new Error(reason));
   } catch (err) {
     errors.push(normalizeErr(err));
   }
@@ -92,9 +111,17 @@ async function transcribeYoutubeWithPriority(videoId, { prompt } = {}) {
       allowEnglishFallback: false,
       throwOnEmpty: true,
     });
-    return buildTranscriptionFromSubtitle(manual, {
+    const manualResult = buildTranscriptionFromSubtitle(manual, {
       model: "youtube-subtitle-manual",
     });
+    if (!isTranscriptTooShort(manualResult)) return manualResult;
+    errors.push(
+      new Error(
+        `Subtitle manual terpotong (durasi ${
+          manualResult.durationSeconds ?? "unknown"
+        }s dari ${manualResult.videoDurationSeconds ?? "unknown"}s).`,
+      ),
+    );
   } catch (err) {
     errors.push(normalizeErr(err));
   }
@@ -107,11 +134,23 @@ async function transcribeYoutubeWithPriority(videoId, { prompt } = {}) {
       allowEnglishFallback: false,
       throwOnEmpty: true,
     });
-    return buildTranscriptionFromSubtitle(auto, {
+    const autoResult = buildTranscriptionFromSubtitle(auto, {
       model: "youtube-subtitle-auto",
     });
+    if (!isTranscriptTooShort(autoResult)) return autoResult;
+    errors.push(
+      new Error(
+        `Auto subtitle terpotong (durasi ${
+          autoResult.durationSeconds ?? "unknown"
+        }s dari ${autoResult.videoDurationSeconds ?? "unknown"}s).`,
+      ),
+    );
   } catch (err) {
     errors.push(normalizeErr(err));
+  }
+
+  if (whisperResult && whisperResult.model === "stub-no-openai-key" && whisperResult.text?.trim()) {
+    return whisperResult;
   }
 
   const lastError = errors.at(-1);
@@ -146,6 +185,7 @@ export async function processYoutubeTranscriptionAction(input) {
   const transcription = await transcribeYoutubeWithPriority(videoId);
 
   const durationSeconds =
+    transcription?.videoDurationSeconds ??
     transcription?.durationSeconds ??
     estimateDurationSeconds(transcription?.segments ?? []) ??
     null;
