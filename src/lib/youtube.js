@@ -362,6 +362,7 @@ export async function fetchYoutubeTranscript(
     throw new Error("Video ID tidak ditemukan.");
   }
 
+  let videoDurationSeconds = null;
   const buildFallbackTranscript = (reason) => {
     const message =
       typeof reason === "string"
@@ -377,6 +378,7 @@ export async function fetchYoutubeTranscript(
       segments,
       text,
       srt: segmentsToSrt(segments),
+      videoDurationSeconds,
     };
   };
 
@@ -427,6 +429,9 @@ export async function fetchYoutubeTranscript(
     if (infoCache.has(cacheKey)) return infoCache.get(cacheKey);
     const info = await runYtDlpJson(url, preferredLang);
     infoCache.set(cacheKey, info);
+    if (videoDurationSeconds === null && Number.isFinite(info?.duration)) {
+      videoDurationSeconds = Math.round(info.duration);
+    }
     return info;
   };
 
@@ -476,6 +481,7 @@ export async function fetchYoutubeTranscript(
         segments,
         text: segmentsToPlainText(segments),
         srt: segmentsToSrt(segments),
+        videoDurationSeconds,
       };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
