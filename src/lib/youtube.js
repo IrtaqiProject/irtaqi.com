@@ -93,60 +93,6 @@ export async function fetchYoutubeMetadata(id) {
   return video;
 }
 
-export async function downloadYoutubeAudio(videoId, { format = DEFAULT_AUDIO_FORMAT } = {}) {
-  if (!videoId) {
-    throw new Error("Video ID tidak ditemukan.");
-  }
-
-  const url = `https://www.youtube.com/watch?v=${videoId}`;
-  const tempDir = path.join(tmpdir(), `irtaqi-yt-${randomUUID()}`);
-  await fs.mkdir(tempDir, { recursive: true });
-  const outputTemplate = path.join(tempDir, "%(id)s.%(ext)s");
-
-  const args = [
-    "-f",
-    format,
-    "--no-playlist",
-    "--ignore-errors",
-    "--no-progress",
-    "--no-warnings",
-    "--output",
-    outputTemplate,
-    url,
-  ];
-
-  if (process.env.YTDLP_COOKIES_PATH) {
-    args.splice(-1, 0, "--cookies", process.env.YTDLP_COOKIES_PATH);
-  }
-
-  try {
-    await exec(YTDLP_BIN, args, {
-      cwd: tempDir,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-    const files = await fs.readdir(tempDir);
-    const allowedExt = new Set(["m4a", "mp3", "webm", "mp4", "opus", "flac", "ogg", "wav"]);
-    const audioFile = files.find((name) => {
-      const ext = path.extname(name || "").replace(".", "").toLowerCase();
-      return allowedExt.has(ext);
-    });
-    if (!audioFile) {
-      throw new Error("File audio tidak ditemukan setelah yt-dlp selesai.");
-    }
-    const filePath = path.join(tempDir, audioFile);
-    const cleanup = async () => {
-      await fs.rm(tempDir, { recursive: true, force: true });
-    };
-    return { filePath, cleanup };
-  } catch (err) {
-    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-    if (err?.code === "ENOENT") {
-      throw new Error("yt-dlp tidak ditemukan. Install yt-dlp atau set YTDLP_PATH.");
-    }
-    throw new Error(`Gagal mengunduh audio YouTube: ${err?.message || "unknown error"}`);
-  }
-}
-
 function toSrtTimestamp(seconds) {
   const date = new Date(seconds * 1000);
   const hh = String(date.getUTCHours()).padStart(2, "0");
