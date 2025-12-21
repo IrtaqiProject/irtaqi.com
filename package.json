@@ -16,6 +16,8 @@
     "clsx": "^2.1.1",
     "jotai": "^2.15.1",
     "lucide-react": "^0.471.0",
+    "markmap-lib": "^0.18.12",
+    "markmap-view": "^0.18.12",
     "mermaid": "^11.3.0",
     "nanoid": "^5.0.9",
     "next": "^16.0.10",

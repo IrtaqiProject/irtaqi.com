@@ -1,75 +1,129 @@
 "use client";
 
-import mermaid from "mermaid";
-import { useEffect, useId, useRef } from "react";
-import { atom, useAtom } from "jotai";
+import { useEffect, useRef, useState } from "react";
+import { Transformer } from "markmap-lib";
+import { Markmap } from "markmap-view";
+
+const palette = [
+  "#2563eb",
+  "#f97316",
+  "#22c55e",
+  "#a855f7",
+  "#f43f5e",
+  "#14b8a6",
+  "#eab308",
+  "#06b6d4",
+  "#ef4444",
+  "#84cc16",
+];
 
 export function MindmapCanvas({ chart, title = "Peta Pikiran" }) {
-  const svgAtomRef = useRef(null);
-  const errorAtomRef = useRef(null);
+  const svgRef = useRef(null);
+  const markmapRef = useRef(null);
+  const transformerRef = useRef(null);
+  const [error, setError] = useState("");
 
-  if (!svgAtomRef.current) svgAtomRef.current = atom("");
-  if (!errorAtomRef.current) errorAtomRef.current = atom("");
-
-  const [svg, setSvg] = useAtom(svgAtomRef.current);
-  const [error, setError] = useAtom(errorAtomRef.current);
-  const id = useId();
-
-  useEffect(() => {
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: "loose",
-      theme: "dark",
-      themeVariables: {
-        fontFamily: "Inter, system-ui, -apple-system, sans-serif",
-        primaryColor: "#1b1145",
-        secondaryColor: "#312e81",
-        tertiaryColor: "#4c1d95",
-        primaryBorderColor: "#8b5cf6",
-        lineColor: "#c084fc",
-        textColor: "#e5e7eb",
-      },
-    });
-  }, []);
+  if (!transformerRef.current) {
+    transformerRef.current = new Transformer();
+  }
 
   useEffect(() => {
-    if (!chart) return;
-    let active = true;
+    const normalized = chart?.trim();
+    if (!normalized || !svgRef.current) return;
+
+    let cancelled = false;
     setError("");
 
     const render = async () => {
       try {
-        const { svg } = await mermaid.render(`${id}-mindmap`, chart);
-        if (active) setSvg(svg);
+        const svgEl = svgRef.current;
+        svgEl.style.setProperty("--markmap-font", "600 15px/22px 'Inter', system-ui, sans-serif");
+        svgEl.style.setProperty("--markmap-text-color", "#0f172a");
+        svgEl.style.setProperty("--markmap-code-bg", "#f8fafc");
+        svgEl.style.setProperty("--markmap-code-color", "#0f172a");
+        svgEl.style.setProperty("--markmap-a-color", "#2563eb");
+        svgEl.style.setProperty("--markmap-a-hover-color", "#1d4ed8");
+        svgEl.style.setProperty("--markmap-highlight-node-bg", "#e0f2fe");
+        svgEl.style.setProperty("--markmap-circle-open-bg", "#e2e8f0");
+
+        const { root } = transformerRef.current.transform(normalized);
+
+        if (!root || (!root.children?.length && !root.content)) {
+          throw new Error("Mindmap kosong atau tidak valid.");
+        }
+
+        const paintLinks = () => {
+          const links = svgEl.querySelectorAll("path.markmap-link");
+          links.forEach((link) => {
+            const depth = Number(link.dataset.depth ?? 0);
+            const stroke = palette[Number.isFinite(depth) ? depth % palette.length : 0];
+            link.setAttribute("stroke", stroke);
+            link.setAttribute("stroke-width", "2.4");
+            link.setAttribute("opacity", "0.9");
+          });
+        };
+
+        if (markmapRef.current && markmapRef.current.setData) {
+          await markmapRef.current.setData(root);
+          if (markmapRef.current.fit) {
+            await markmapRef.current.fit();
+          }
+          paintLinks();
+        } else {
+          markmapRef.current?.destroy?.();
+          svgEl.innerHTML = "";
+          markmapRef.current = Markmap.create(
+            svgEl,
+            {
+              color: (node) => palette[node.depth % palette.length],
+              lineWidth: (node) => Math.max(1.6, 2.6 - node.depth * 0.2),
+              duration: 300,
+              initialExpandLevel: 3,
+            },
+            root,
+          );
+          if (markmapRef.current.fit) {
+            await markmapRef.current.fit();
+          }
+          paintLinks();
+        }
       } catch (err) {
-        if (!active) return;
-        setError(err instanceof Error ? err.message : "Gagal merender mindmap");
-        setSvg("");
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Gagal merender mindmap");
+        }
       }
     };
 
     render();
 
     return () => {
-      active = false;
+      cancelled = true;
     };
-  }, [chart, id]);
+  }, [chart]);
+
+  useEffect(() => {
+    return () => {
+      if (markmapRef.current?.destroy) {
+        markmapRef.current.destroy();
+      }
+      markmapRef.current = null;
+    };
+  }, []);
 
   if (!chart) return null;
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl backdrop-blur">
+    <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-sky-50 to-amber-50 p-4 shadow-xl">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-white">{title}</p>
-        {error ? <span className="text-xs text-amber-300">Render gagal</span> : null}
+        <p className="text-sm font-semibold text-slate-900">{title}</p>
+        {error ? <span className="text-xs text-amber-600">Render gagal</span> : null}
       </div>
       {error ? (
-        <p className="text-sm text-amber-200">{error}</p>
+        <p className="text-sm text-amber-700">{error}</p>
       ) : (
-        <div
-          className="mermaid [&>svg]:mx-auto [&>svg]:h-full [&>svg]:w-full [&>svg]:max-w-full"
-          dangerouslySetInnerHTML={{ __html: svg }}
-        />
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-sky-50 via-white to-rose-50 p-2 shadow-inner">
+          <svg ref={svgRef} className="h-[420px] w-full text-slate-900" />
+        </div>
       )}
     </div>
   );

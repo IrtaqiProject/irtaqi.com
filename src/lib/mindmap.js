@@ -4,18 +4,13 @@ export function sanitizeText(value, fallback = "") {
     .replace(/\s+/g, " ")
     .trim();
 
-  // Hapus tanda kurung/bracket yang diperlakukan Mermaid sebagai token bentuk.
-  const safeChars = collapsed
-    .replace(/["<>()\[\]{}]/g, "")
-    .trim();
-
-  // Mermaids mindmap parser gagal bila label diawali bullet (-, *, •, angka).
-  const withoutBullets = safeChars
+  const withoutTags = collapsed.replace(/<[^>]+>/g, "").trim();
+  const withoutBullets = withoutTags
     .replace(/^[\-\u2013\u2014\u2022\u2023\u25E6\u2043\*\+•●○◦·]+\s*/, "")
     .replace(/^\d+[\.\)\:]\s*/, "")
     .trim();
 
-  return (withoutBullets || safeChars || fallback).trim();
+  return (withoutBullets || withoutTags || fallback).trim();
 }
 
 export function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
@@ -63,7 +58,7 @@ export function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
     rootNode.label = sanitizeText(title, rootNode.label || "Peta Pikiran");
   }
 
-  const lines = ["mindmap"];
+  const lines = [];
   const visited = new Set();
 
   const walk = (key, depth) => {
@@ -72,16 +67,17 @@ export function buildMindmapChart(nodes = [], title = "Peta Pikiran") {
     const node = map.get(key);
     if (!node) return;
     const note = node.note ? ` — ${node.note}` : "";
-    const line = `${"  ".repeat(depth)}${node.label}${note}`;
+    const line = `${"  ".repeat(depth)}- ${node.label}${note}`;
     lines.push(line);
     node.children.forEach((childKey) => walk(childKey, depth + 1));
   };
 
-  walk(rootKey, 1);
+  walk(rootKey, 0);
 
   map.forEach((node, key) => {
     if (visited.has(key)) return;
-    lines.push(`  ${node.label}`);
+    const note = node.note ? ` — ${node.note}` : "";
+    lines.push(`- ${node.label}${note}`);
   });
 
   return lines.join("\n");
