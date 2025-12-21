@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect } from "react";
+import { useAtom } from "jotai";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -26,6 +27,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  transcriptDetailAtom,
+  transcriptDetailErrorAtom,
+  transcriptDetailLoadingAtom,
+} from "@/state/ui-atoms";
 
 const stageClasses = {
   done: "border-emerald-300/40 bg-emerald-300/15 text-emerald-100",
@@ -328,10 +334,11 @@ export default function TranscriptDetailPage() {
 
   useEffect(() => {
     if (status !== "authenticated" || !transcriptId) return;
+    setData(null);
+    setError("");
+    setLoading(true);
     let active = true;
     const load = async () => {
-      setLoading(true);
-      setError("");
       try {
         const res = await fetch(`/api/transcripts/${transcriptId}`);
         if (!res.ok) {
@@ -405,14 +412,15 @@ export default function TranscriptDetailPage() {
     }
   };
 
-  const videoLabel = useMemo(() => {
-    const urlLabel = data?.youtubeUrl
-      ? data.youtubeUrl.replace(/^https?:\/\//, "")
-      : "";
-    if (urlLabel) return urlLabel.length > 80 ? `${urlLabel.slice(0, 77)}...` : urlLabel;
-    if (data?.videoId) return `YouTube ${data.videoId}`;
-    return transcriptId ? `Transcript ${transcriptId}` : "Transcript";
-  }, [data, transcriptId]);
+  const urlLabel = data?.youtubeUrl
+    ? data.youtubeUrl.replace(/^https?:\/\//, "")
+    : "";
+  let videoLabel = transcriptId ? `Transcript ${transcriptId}` : "Transcript";
+  if (urlLabel) {
+    videoLabel = urlLabel.length > 80 ? `${urlLabel.slice(0, 77)}...` : urlLabel;
+  } else if (data?.videoId) {
+    videoLabel = `YouTube ${data.videoId}`;
+  }
 
   const durationText = formatDurationShort(data?.durationSeconds);
   const createdText = formatRelativeTime(data?.createdAt);
@@ -420,17 +428,15 @@ export default function TranscriptDetailPage() {
   const qaDone = Boolean(data?.qa);
   const mindmapDone = Boolean(data?.mindmap);
   const quizDone = Boolean(data?.quiz);
-  const completion = useMemo(() => {
-    const stages = [
-      { state: "done" },
-      { state: summaryDone ? "done" : "todo" },
-      { state: qaDone ? "done" : "todo" },
-      { state: mindmapDone ? "done" : "todo" },
-      { state: quizDone ? "done" : "todo" },
-    ];
-    const doneCount = stages.filter((s) => s.state === "done").length;
-    return Math.round((doneCount / stages.length) * 100);
-  }, [summaryDone, qaDone, mindmapDone, quizDone]);
+  const completionStages = [
+    { state: "done" },
+    { state: summaryDone ? "done" : "todo" },
+    { state: qaDone ? "done" : "todo" },
+    { state: mindmapDone ? "done" : "todo" },
+    { state: quizDone ? "done" : "todo" },
+  ];
+  const doneCount = completionStages.filter((s) => s.state === "done").length;
+  const completion = Math.round((doneCount / completionStages.length) * 100);
 
   if (status === "loading") {
     return (

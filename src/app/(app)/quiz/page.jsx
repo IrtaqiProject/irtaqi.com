@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { useAtom } from "jotai";
 import { useSession } from "next-auth/react";
 import {
@@ -51,6 +51,7 @@ import {
   timerRemainingAtom,
   timerRunningAtom,
 } from "@/state/quiz-atoms";
+import { quizStartedAtom, quizStreamingAtom } from "@/state/ui-atoms";
 
 function normalizeQuestions(questions = []) {
   return (questions ?? []).map((item, idx) => {
@@ -127,7 +128,7 @@ function formatSeconds(seconds) {
 }
 
 function calculateQuizDuration(totalQuestions) {
-  const perQuestion = 40; // detik per soal
+  const perQuestion = 40;
   const minSeconds = 2 * 60;
   const maxSeconds = 12 * 60;
   if (!totalQuestions || Number.isNaN(totalQuestions)) return minSeconds;
@@ -158,8 +159,8 @@ export default function QuizPage() {
     timerRemainingAtom
   );
   const [timerRunning, setTimerRunning] = useAtom(timerRunningAtom);
-  const [streamingText, setStreamingText] = useState("");
-  const [quizStarted, setQuizStarted] = useState(false);
+  const [streamingText, setStreamingText] = useAtom(quizStreamingAtom);
+  const [quizStarted, setQuizStarted] = useAtom(quizStartedAtom);
   const quizProgressCtrl = useFeatureProgress(setQuizProgress);
 
   const transcriptReady = Boolean(transcriptResult?.transcript);
@@ -241,6 +242,7 @@ export default function QuizPage() {
     setShowResults(false);
     setScore(0);
     setValidation("");
+    setStreamingText("");
     setQuizStarted(false);
   }, [
     quizResult?.questions,
@@ -250,8 +252,11 @@ export default function QuizPage() {
     setShowResults,
     setScore,
     setValidation,
+    setStreamingText,
+    setQuizStarted,
   ]);
 
+  // Jalankan countdown ketika kuis dimulai dan paksa penutupan saat waktu habis.
   useEffect(() => {
     if (!timerRunning) return undefined;
     const id = setInterval(() => {
@@ -433,11 +438,6 @@ export default function QuizPage() {
               <h1 className="text-3xl font-bold text-emerald-200">
                 Quiz kajian
               </h1>
-              {/* <h1 className="text-3xl font-bold sm:text-4xl">
-                {quizResult?.videoId ??
-                  transcriptResult.videoId ??
-                "Latihan soal dari transkrip YouTube"}
-              </h1> */}
               <p className="text-white/75">
                 {totalQuestions} soal pilihan ganda · Durasi video{" "}
                 {videoMinutes ? `${videoMinutes} menit` : "?"} ·

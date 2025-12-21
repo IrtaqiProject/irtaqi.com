@@ -4,7 +4,7 @@ import { useAtom } from "jotai";
 import Link from "next/link";
 import { Loader2, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 
 import { ProgressBar } from "@/components/progress-bar";
@@ -28,7 +28,11 @@ import {
   summaryResultAtom,
   transcriptResultAtom,
 } from "@/state/transcribe-atoms";
+<<<<<<< HEAD
+import { summaryStreamingAtom } from "@/state/ui-atoms";
+=======
 import { accountAtom } from "@/state/account-atoms";
+>>>>>>> main
 
 export default function SummaryPage() {
   const { status } = useSession();
@@ -44,8 +48,12 @@ export default function SummaryPage() {
   const [summaryProgress, setSummaryProgress] = useAtom(
     summaryProgressAtom
   );
+<<<<<<< HEAD
+  const [streamingText, setStreamingText] = useAtom(summaryStreamingAtom);
+=======
   const [, setAccount] = useAtom(accountAtom);
   const [streamingText, setStreamingText] = useState("");
+>>>>>>> main
   const summaryProgressCtrl = useFeatureProgress(setSummaryProgress);
 
   useEffect(() => {

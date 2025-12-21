@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 
 import { getDbPool } from "./db";
 
-const CACHE_TTL_SECONDS = 60 * 60; // 1 jam
+const CACHE_TTL_SECONDS = 60 * 60;
 
 const globalStore = globalThis;
 let memoryCache = globalStore._llmCache ?? new Map();

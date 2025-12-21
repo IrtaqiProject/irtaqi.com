@@ -253,6 +253,7 @@ async function streamFromOpenAI({
     userContent,
   });
 
+  // Stream token JSON sebagai event NDJSON (token/done/error) agar UI bisa tampil progres sekaligus menyimpan hasil akhir ke cache/DB.
   const readable = new ReadableStream({
     async start(controller) {
       let buffer = "";

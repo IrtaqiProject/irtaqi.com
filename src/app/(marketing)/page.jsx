@@ -167,14 +167,6 @@ export default function Home() {
             >
               <Link href="/signup">Buat akun gratis</Link>
             </Button>
-            {/* <Button
-              asChild
-              variant="ghost"
-              size="lg"
-              className="text-white hover:bg-white/10"
-            >
-              <Link href="/mermaid">Lihat mindmap sample</Link>
-            </Button> */}
           </div>
           <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">

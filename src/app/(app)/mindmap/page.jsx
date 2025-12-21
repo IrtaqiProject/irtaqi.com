@@ -4,7 +4,7 @@ import { useAtom } from "jotai";
 import Link from "next/link";
 import { GitBranch, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 
 import { MindmapCanvas } from "@/components/mindmap-canvas";
@@ -31,7 +31,11 @@ import {
   mindmapResultAtom,
   transcriptResultAtom,
 } from "@/state/transcribe-atoms";
+<<<<<<< HEAD
+import { mindmapStreamingAtom } from "@/state/ui-atoms";
+=======
 import { accountAtom } from "@/state/account-atoms";
+>>>>>>> main
 
 export default function MindmapPage() {
   const { status } = useSession();
@@ -48,8 +52,12 @@ export default function MindmapPage() {
   const [mindmapProgress, setMindmapProgress] = useAtom(
     mindmapProgressAtom
   );
+<<<<<<< HEAD
+  const [streamingText, setStreamingText] = useAtom(mindmapStreamingAtom);
+=======
   const [, setAccount] = useAtom(accountAtom);
   const [streamingText, setStreamingText] = useState("");
+>>>>>>> main
   const mindmapProgressCtrl = useFeatureProgress(setMindmapProgress);
 
   useEffect(() => {
