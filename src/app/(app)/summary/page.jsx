@@ -20,6 +20,7 @@ import { StepLayout } from "@/components/step-layout";
 import { streamFeature } from "@/lib/feature-stream-client";
 import { useFeatureProgress } from "@/lib/use-progress";
 import { cn } from "@/lib/utils";
+import { accountAtom } from "@/state/account-atoms";
 import {
   summaryErrorAtom,
   summaryLoadingAtom,
@@ -45,6 +46,7 @@ export default function SummaryPage() {
     summaryProgressAtom
   );
   const [streamingText, setStreamingText] = useAtom(summaryStreamingAtom);
+  const [, setAccount] = useAtom(accountAtom);
   const summaryProgressCtrl = useFeatureProgress(setSummaryProgress);
 
   useEffect(() => {

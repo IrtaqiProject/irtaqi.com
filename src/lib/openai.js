@@ -2,6 +2,7 @@ import fs from "node:fs";
 import OpenAI from "openai";
 
 import { getCachedCompletion, setCachedCompletion } from "./llm-cache";
+import { cleanTranscriptText } from "./transcript-format";
 
 let cachedClient = null;
 
@@ -50,8 +51,7 @@ function segmentsToSrt(segments) {
 }
 
 function normalizeTranscriptText(text) {
-  if (!text) return "";
-  return text.replace(/\s+/g, " ").trim();
+  return cleanTranscriptText(text);
 }
 
 export async function transcribeAudioStub(source, prompt) {
@@ -98,24 +98,28 @@ export async function transcribeAudioWithWhisper(
       ? transcription.segments
       : [];
 
-    const segments = rawSegments.map((seg) => {
-      const start = Number(seg?.start ?? 0);
-      const end = Number(seg?.end ?? start);
-      return {
-        id: seg?.id,
-        start,
-        end,
-        duration: Math.max(0, end - start),
-        text: seg?.text?.trim() ?? "",
-      };
-    });
+    const segments = rawSegments
+      .map((seg) => {
+        const start = Number(seg?.start ?? 0);
+        const end = Number(seg?.end ?? start);
+        const text = cleanTranscriptText(seg?.text?.trim() ?? "");
+        if (!text) return null;
+        return {
+          id: seg?.id,
+          start,
+          end,
+          duration: Math.max(0, end - start),
+          text,
+        };
+      })
+      .filter(Boolean);
 
     const text =
       normalizeTranscriptText(
         transcription.text ?? segments.map((s) => s.text).join(" "),
       ) || "";
     const srt = segmentsToSrt(segments);
-    const fallbackDuration = segments.reduce(
+    const fallbackDuration = rawSegments.reduce(
       (max, seg) => Math.max(max, Number(seg?.end ?? 0)),
       0,
     );

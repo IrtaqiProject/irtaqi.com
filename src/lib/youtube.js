@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { cleanTranscriptText } from "./transcript-format";
 
 const API_BASE = "https://www.googleapis.com/youtube/v3";
 const exec = promisify(execFile);
@@ -119,6 +120,42 @@ function segmentsToPlainText(segments) {
     .join(" ");
 }
 
+function hasMeaningfulContent(text) {
+  return /\p{L}|\p{N}/u.test(text);
+}
+
+function sanitizeSegmentText(text) {
+  const cleaned = cleanTranscriptText(text);
+  if (!cleaned) return "";
+  return hasMeaningfulContent(cleaned) ? cleaned : "";
+}
+
+function sanitizeSegments(segments) {
+  if (!Array.isArray(segments)) return [];
+  return segments
+    .map((seg) => {
+      const text = sanitizeSegmentText(seg?.text ?? "");
+      if (!text) return null;
+      const start = Number(seg?.start ?? 0);
+      const durationValue = Number(seg?.duration ?? 0);
+      const endValue = Number(seg?.end ?? 0);
+      const duration =
+        Number.isFinite(durationValue) && durationValue > 0
+          ? durationValue
+          : Number.isFinite(endValue) && Number.isFinite(start)
+            ? Math.max(0, endValue - start)
+            : 0;
+
+      return {
+        ...seg,
+        start: Number.isFinite(start) ? start : 0,
+        duration,
+        text,
+      };
+    })
+    .filter(Boolean);
+}
+
 function parseVttTimestamp(ts) {
   const token = ts.trim().split(/\s+/)[0]; // buang pengaturan posisi/align
   const match = token.match(/(?:(\d+):)?(\d{2}):(\d{2})(?:[.,](\d{1,3}))?/);
@@ -227,20 +264,20 @@ function parseTtml(ttml) {
 
 function parseSubtitleBody(subtitle, body) {
   if (subtitle.ext === "vtt") {
-    return parseVtt(body);
+    return sanitizeSegments(parseVtt(body));
   }
   if (subtitle.ext === "srt") {
-    return parseSrt(body);
+    return sanitizeSegments(parseSrt(body));
   }
   if (subtitle.ext === "json3" || subtitle.ext?.startsWith("srv")) {
-    return parseJson3(body);
+    return sanitizeSegments(parseJson3(body));
   }
   if (subtitle.ext === "ttml") {
-    return parseTtml(body);
+    return sanitizeSegments(parseTtml(body));
   }
 
-  let segments = parseVtt(body);
-  if (!segments.length) segments = parseSrt(body);
+  let segments = sanitizeSegments(parseVtt(body));
+  if (!segments.length) segments = sanitizeSegments(parseSrt(body));
   return segments;
 }
 
@@ -311,7 +348,16 @@ function listSubtitleLangs(info) {
   return [...new Set([...subLangs, ...autoLangs])];
 }
 
-export async function fetchYoutubeTranscript(videoId, { lang = "id" } = {}) {
+export async function fetchYoutubeTranscript(
+  videoId,
+  {
+    lang = "id",
+    includeManual = true,
+    includeAuto = true,
+    allowEnglishFallback = true,
+    throwOnEmpty = false,
+  } = {},
+) {
   if (!videoId) {
     throw new Error("Video ID tidak ditemukan.");
   }
@@ -340,26 +386,38 @@ export async function fetchYoutubeTranscript(videoId, { lang = "id" } = {}) {
     .filter((code) => code && (code.toLowerCase().startsWith("id") || code === "in"));
   const englishFallbackLangs = ["en", "en-US", "en-GB"];
 
-  const attempts = [
-    {
+  const attempts = [];
+
+  if (includeManual) {
+    attempts.push({
       label: "Subtitle manual Indonesia",
       langs: indoLangs.length ? indoLangs : baseIndoLangs,
       sourcePreference: ["subtitles"],
       requestLang: indoLangs[0] ?? "id",
-    },
-    {
+    });
+  }
+
+  if (includeAuto) {
+    attempts.push({
       label: "Auto subtitle Indonesia",
       langs: indoLangs.length ? indoLangs : baseIndoLangs,
       sourcePreference: ["automatic_captions"],
       requestLang: indoLangs[0] ?? "id",
-    },
-    {
+    });
+  }
+
+  if (allowEnglishFallback) {
+    attempts.push({
       label: "Fallback bahasa Inggris",
       langs: englishFallbackLangs,
       sourcePreference: ["subtitles", "automatic_captions"],
       requestLang: englishFallbackLangs[0] ?? "en",
-    },
-  ];
+    });
+  }
+
+  if (!attempts.length) {
+    throw new Error("Tidak ada sumber subtitle yang diizinkan untuk dicoba.");
+  }
 
   let lastError = null;
   const infoCache = new Map();
@@ -428,5 +486,9 @@ export async function fetchYoutubeTranscript(videoId, { lang = "id" } = {}) {
     "[youtube] Subtitle fetch failed, fallback to stub transcript.",
     lastError instanceof Error ? lastError.message : String(lastError),
   );
+  if (throwOnEmpty) {
+    if (lastError) throw lastError;
+    throw new Error("Subtitle/SRT tidak tersedia untuk video ini.");
+  }
   return buildFallbackTranscript(lastError);
 }

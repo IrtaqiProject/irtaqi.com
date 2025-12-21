@@ -6,6 +6,13 @@ const TIMESTAMP_PATTERNS = [
   /\(\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?\)/g,
 ];
 
+const NOISE_TOKEN_PATTERNS = [
+  /^(?:\.{2,}|…+)$/,
+  /^(?:-+|—+|–+)$/,
+  /^(?:•+|▪+|·+|●+)$/,
+  /^(?:♪+)$/,
+];
+
 function escapeHtml(input) {
   return (input || "")
     .replace(/&/g, "&amp;")
@@ -135,8 +142,19 @@ export function cleanTranscriptText(text) {
   for (const pattern of TIMESTAMP_PATTERNS) {
     result = result.replace(pattern, " ");
   }
-  result = result.replace(/\s+/g, " ").trim();
-  return result;
+
+  // Buang token kosong seperti deretan titik/garis/bullet
+  result = result
+    .replace(/\s+(?:\.{2,}|…+)(?:\s+(?:\.{2,}|…+))+/g, " ")
+    .replace(/(?:^|\s)(?:\.{2,}|…+)(?=\s|$)/g, " ");
+
+  const tokens = result
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) => !NOISE_TOKEN_PATTERNS.some((re) => re.test(token)));
+
+  result = tokens.join(" ");
+  return result.replace(/\s+/g, " ").trim();
 }
 
 function measureHelveticaText(text, fontSize = PDF_FONT_SIZE) {

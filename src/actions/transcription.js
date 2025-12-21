@@ -46,6 +46,19 @@ function decideQuizCount(durationSeconds) {
   return 25; // default untuk 60–120 menit
 }
 
+function buildTranscriptionFromSubtitle(result, { model = null } = {}) {
+  const segments = result?.segments ?? [];
+  return {
+    text: result?.text ?? "",
+    srt: result?.srt ?? "",
+    segments,
+    lang: result?.lang ?? null,
+    language: result?.lang ?? null,
+    durationSeconds: estimateDurationSeconds(segments),
+    model,
+  };
+}
+
 async function transcribeYoutubeAudio(videoId, { prompt } = {}) {
   const download = await downloadYoutubeAudio(videoId);
   try {
@@ -56,6 +69,54 @@ async function transcribeYoutubeAudio(videoId, { prompt } = {}) {
   } finally {
     await download?.cleanup?.().catch(() => {});
   }
+}
+
+async function transcribeYoutubeWithPriority(videoId, { prompt } = {}) {
+  const errors = [];
+  const normalizeErr = (err) =>
+    err instanceof Error ? err : new Error(String(err));
+
+  try {
+    const whisperResult = await transcribeYoutubeAudio(videoId, { prompt });
+    if (whisperResult?.text) return whisperResult;
+    errors.push(new Error("Transkripsi Whisper kosong."));
+  } catch (err) {
+    errors.push(normalizeErr(err));
+  }
+
+  try {
+    const manual = await fetchYoutubeTranscript(videoId, {
+      lang: "id",
+      includeManual: true,
+      includeAuto: false,
+      allowEnglishFallback: false,
+      throwOnEmpty: true,
+    });
+    return buildTranscriptionFromSubtitle(manual, {
+      model: "youtube-subtitle-manual",
+    });
+  } catch (err) {
+    errors.push(normalizeErr(err));
+  }
+
+  try {
+    const auto = await fetchYoutubeTranscript(videoId, {
+      lang: "id",
+      includeManual: false,
+      includeAuto: true,
+      allowEnglishFallback: false,
+      throwOnEmpty: true,
+    });
+    return buildTranscriptionFromSubtitle(auto, {
+      model: "youtube-subtitle-auto",
+    });
+  } catch (err) {
+    errors.push(normalizeErr(err));
+  }
+
+  const lastError = errors.at(-1);
+  const message = lastError?.message || "Proses transcribe gagal.";
+  throw new Error(`Gagal memproses audio YouTube: ${message}`);
 }
 
 export async function processYoutubeTranscriptionAction(input) {
@@ -69,11 +130,11 @@ export async function processYoutubeTranscriptionAction(input) {
     throw new Error("Harus login untuk memproses transcript.");
   }
 
-  const preAccount = getUserAccount(session.user.id, {
+  const account = getUserAccount(session.user.id, {
     email: session.user.email,
     name: session.user.name,
   });
-  if (!preAccount.isSubscribed && (preAccount.tokens ?? 0) <= 0) {
+  if (!account.isSubscribed && (account.tokens ?? 0) <= 0) {
     throw new Error("Token habis. Langganan Plus, Pro, atau Ultra untuk lanjut.");
   }
 
@@ -82,33 +143,7 @@ export async function processYoutubeTranscriptionAction(input) {
     throw new Error("URL YouTube tidak valid");
   }
 
-  let transcription = null;
-  let lastError = null;
-
-  try {
-    transcription = await transcribeYoutubeAudio(videoId);
-  } catch (err) {
-    lastError = err instanceof Error ? err : new Error(String(err));
-  }
-
-  if (!transcription?.text) {
-    try {
-      const fallback = await fetchYoutubeTranscript(videoId);
-      transcription = {
-        text: fallback.text,
-        srt: fallback.srt,
-        segments: fallback.segments,
-        lang: fallback.lang,
-        language: fallback.lang,
-        durationSeconds: estimateDurationSeconds(fallback.segments),
-        model: null,
-      };
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : lastError?.message || "Proses transcribe gagal.";
-      throw new Error(`Gagal memproses audio YouTube: ${message}`);
-    }
-  }
+  const transcription = await transcribeYoutubeWithPriority(videoId);
 
   const durationSeconds =
     transcription?.durationSeconds ??
@@ -154,7 +189,7 @@ export async function transcribeDirectAction(input) {
   const { audioUrl, prompt } = parsed.data;
   const youtubeId = extractVideoId(audioUrl);
   if (youtubeId) {
-    return transcribeYoutubeAudio(youtubeId, { prompt });
+    return transcribeYoutubeWithPriority(youtubeId, { prompt });
   }
 
   return transcribeAudioStub(audioUrl, prompt);
