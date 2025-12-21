@@ -28,11 +28,7 @@ import {
   qaResultAtom,
   transcriptResultAtom,
 } from "@/state/transcribe-atoms";
-<<<<<<< HEAD
 import { qaStreamingAtom } from "@/state/ui-atoms";
-=======
-import { accountAtom } from "@/state/account-atoms";
->>>>>>> main
 
 export default function QaPage() {
   const { status } = useSession();

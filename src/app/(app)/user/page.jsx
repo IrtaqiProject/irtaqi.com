@@ -1,12 +1,7 @@
 "use client";
 
 import Link from "next/link";
-<<<<<<< HEAD
 import { useEffect } from "react";
-=======
-import { useEffect, useState } from "react";
-import { useAtom } from "jotai";
->>>>>>> main
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useAtom } from "jotai";
@@ -31,17 +26,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-<<<<<<< HEAD
   userDataErrorAtom,
   userDataLoadingAtom,
   userTranscriptsAtom,
 } from "@/state/ui-atoms";
-=======
-  accountAtom,
-  accountErrorAtom,
-  accountLoadingAtom,
-} from "@/state/account-atoms";
->>>>>>> main
 
 const DEFAULT_AVATAR = "/avatar-default.svg";
 
@@ -394,7 +382,6 @@ function buildTimelineEntries(items) {
 export default function UserPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-<<<<<<< HEAD
   const [transcripts, setTranscripts] = useAtom(userTranscriptsAtom);
   const [dataLoading, setDataLoading] = useAtom(userDataLoadingAtom);
   const [dataError, setDataError] = useAtom(userDataErrorAtom);
@@ -404,17 +391,6 @@ export default function UserPage() {
     setDataError("");
     setDataLoading(true);
   }, [setDataError, setDataLoading, setTranscripts]);
-=======
-  const [account, setAccount] = useAtom(accountAtom);
-  const [accountLoading, setAccountLoading] = useAtom(accountLoadingAtom);
-  const [accountError, setAccountError] = useAtom(accountErrorAtom);
-  const [transcripts, setTranscripts] = useState([]);
-  const [dataLoading, setDataLoading] = useState(true);
-  const [dataError, setDataError] = useState("");
-  const [plans, setPlans] = useState([]);
-  const [subscribeLoading, setSubscribeLoading] = useState("");
-  const [subscribeMessage, setSubscribeMessage] = useState("");
->>>>>>> main
 
   useEffect(() => {
     if (status === "unauthenticated") {

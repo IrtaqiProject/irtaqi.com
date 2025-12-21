@@ -31,11 +31,7 @@ import {
   mindmapResultAtom,
   transcriptResultAtom,
 } from "@/state/transcribe-atoms";
-<<<<<<< HEAD
 import { mindmapStreamingAtom } from "@/state/ui-atoms";
-=======
-import { accountAtom } from "@/state/account-atoms";
->>>>>>> main
 
 export default function MindmapPage() {
   const { status } = useSession();
@@ -52,12 +48,7 @@ export default function MindmapPage() {
   const [mindmapProgress, setMindmapProgress] = useAtom(
     mindmapProgressAtom
   );
-<<<<<<< HEAD
   const [streamingText, setStreamingText] = useAtom(mindmapStreamingAtom);
-=======
-  const [, setAccount] = useAtom(accountAtom);
-  const [streamingText, setStreamingText] = useState("");
->>>>>>> main
   const mindmapProgressCtrl = useFeatureProgress(setMindmapProgress);
 
   useEffect(() => {
